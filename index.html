@@ -195,12 +195,51 @@ a{color:var(--blue);text-decoration:none}
 .tarot-c .tc-mean{font-size:.7rem;color:var(--text3);margin-top:4px}
 .mystic-verdict{margin-top:12px;font-size:.82rem;font-weight:500}
 
-/* AI card */
-.ai-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:14px;position:relative;overflow:hidden}
+/* AI card — redesigned */
+.ai-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:14px;position:relative;overflow:hidden}
 .ai-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--blue),var(--purple),var(--green))}
-.ai-card .ac-title{font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:14px}
-.ai-text{font-size:.88rem;line-height:1.85;color:var(--text);white-space:pre-line}
-.ai-action{margin-top:14px;padding:12px 16px;border-radius:var(--radius-sm);font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:8px}
+.ai-card .ac-title{font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:18px}
+
+/* Verdict hero */
+.ai-verdict{display:flex;align-items:center;gap:18px;margin-bottom:20px;padding:18px;background:var(--bg);border-radius:var(--radius-sm)}
+.ai-verdict .av-icon{font-size:2.4rem;line-height:1;flex-shrink:0}
+.ai-verdict .av-main{flex:1}
+.ai-verdict .av-label{font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.ai-verdict .av-text{font-size:1.15rem;font-weight:700}
+.ai-verdict .av-text.bullish{color:var(--green)}.ai-verdict .av-text.bearish{color:var(--red)}.ai-verdict .av-text.neutral{color:var(--amber)}
+.ai-verdict .av-conf{display:flex;align-items:center;gap:8px;margin-top:6px}
+.ai-verdict .av-conf-bar{flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;max-width:120px}
+.ai-verdict .av-conf-fill{height:100%;border-radius:2px;transition:width .6s}
+.ai-verdict .av-conf-val{font-family:var(--font-mono);font-size:.72rem;color:var(--text2)}
+.ai-verdict .av-prob{text-align:right;flex-shrink:0}
+.ai-verdict .av-prob-num{font-family:var(--font-mono);font-size:1.8rem;font-weight:700}
+.ai-verdict .av-prob-label{font-size:.65rem;color:var(--text3)}
+
+/* Signal badges */
+.ai-signals{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+@media(max-width:600px){.ai-signals{grid-template-columns:1fr}}
+.ai-sig{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg);border-radius:var(--radius-sm);border-left:3px solid transparent}
+.ai-sig.bullish{border-left-color:var(--green)}.ai-sig.bearish{border-left-color:var(--red)}.ai-sig.neutral{border-left-color:var(--text3)}
+.ai-sig .as-icon{font-size:1.1rem;flex-shrink:0}
+.ai-sig .as-name{font-size:.72rem;color:var(--text3)}
+.ai-sig .as-val{font-family:var(--font-mono);font-weight:600;font-size:.88rem}
+.ai-sig .as-tag{padding:2px 8px;border-radius:10px;font-size:.65rem;font-weight:600}
+.ai-sig .as-tag.up{background:var(--green-g);color:var(--green)}
+.ai-sig .as-tag.down{background:var(--red-g);color:var(--red)}
+.ai-sig .as-tag.flat{background:var(--bg3);color:var(--text3)}
+.ai-sig .as-detail{font-size:.68rem;color:var(--text3);font-family:var(--font-mono)}
+
+/* Key factors */
+.ai-factors{margin-bottom:18px}
+.ai-factors .af-title{font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.ai-factor-list{display:flex;flex-wrap:wrap;gap:8px}
+.ai-factor{padding:6px 12px;border-radius:16px;font-size:.72rem;font-weight:500;border:1px solid var(--border)}
+.ai-factor.pos{color:var(--green);border-color:rgba(0,232,157,.2);background:rgba(0,232,157,.05)}
+.ai-factor.neg{color:var(--red);border-color:rgba(255,68,102,.2);background:rgba(255,68,102,.05)}
+.ai-factor.neu{color:var(--text2);border-color:var(--border);background:var(--bg)}
+
+/* Action bar */
+.ai-action{margin-top:0;padding:14px 18px;border-radius:var(--radius-sm);font-size:.88rem;font-weight:600;display:flex;align-items:center;gap:10px}
 .ai-action.bullish{background:var(--green-g);color:var(--green);border:1px solid rgba(0,232,157,.18)}
 .ai-action.bearish{background:var(--red-g);color:var(--red);border:1px solid rgba(255,68,102,.18)}
 .ai-action.neutral{background:var(--amber-g);color:var(--amber);border:1px solid rgba(255,184,48,.18)}
@@ -428,7 +467,9 @@ confidence = 三项信号的一致程度</div>
 
     <div class="ai-card">
       <div class="ac-title">&#129504; AI 综合研判</div>
-      <div class="ai-text" id="aiText"></div>
+      <div class="ai-verdict" id="aiVerdict"></div>
+      <div class="ai-signals" id="aiSignals"></div>
+      <div class="ai-factors" id="aiFactors"></div>
       <div class="ai-action" id="aiAct"></div>
     </div>
 
@@ -1234,31 +1275,114 @@ function renderMysticCard(hex,tar){
 
 function renderAIText(fusion,signals){
   var market=signals.market,model=signals.model,ai=signals.ai,mystic=signals.mystic;
-  var up=(fusion.up_prob*100).toFixed(0),dn=(fusion.down_prob*100).toFixed(0);
-  var biasT=fusion.bias==='bullish'?'\u504F\u5411\u4E0A\u6DA8':fusion.bias==='bearish'?'\u504F\u5411\u4E0B\u8DCC':'\u65B9\u5411\u4E0D\u660E\u786E';
-  var biasE=fusion.bias==='bullish'?'\uD83D\uDCC8':fusion.bias==='bearish'?'\uD83D\uDCC9':'\u2696\uFE0F';
-  var mS=strengthWord(market.up_prob),moS=strengthWord(model.up_prob),aS=strengthWord(ai.up_prob);
-  var disagT=fusion.disagreement>0.2?'\u8F83\u5927':fusion.disagreement>0.1?'\u4E00\u5B9A':'\u8F83\u5C0F';
-  var confT=fusion.confidence>0.6?'\u8F83\u9AD8':fusion.confidence>0.4?'\u4E2D\u7B49':'\u504F\u4F4E';
-  var mysticT=mystic.bias==='positive'?'\u504F\u6B63':mystic.bias==='negative'?'\u504F\u8D1F':'\u4E2D\u6027';
+  var up=(fusion.up_prob*100).toFixed(1),dn=(fusion.down_prob*100).toFixed(1);
   var wt=STATE.weights;
+  var confPct=(fusion.confidence*100).toFixed(0);
+  var confClr=fusion.confidence>0.6?'var(--green)':fusion.confidence>0.4?'var(--amber)':'var(--red)';
 
-  var text='\u5F53\u524D\u4FE1\u53F7\u6574\u4F53'+biasT+'\uFF08'+biasE+' '+up+'% vs '+dn+'%\uFF09\uFF0C\n'+
-    '\u4E0D\u540C\u6A21\u578B\u4E4B\u95F4\u5B58\u5728'+disagT+'\u5206\u6B67\u3002\n\n'+
-    '\u5E02\u573A\u4FE1\u53F7'+(mS==='\u5F3A'?'\u8F83\u5F3A':'\u4E2D\u7B49\u504F'+mS)+'\uFF08\u6743\u91CD'+wt.market+'%\uFF09\uFF0C\n'+
-    '\u6570\u636E\u6A21\u578B'+(moS==='\u5F3A'?'\u7ED9\u4E88\u8F83\u5F3A\u652F\u6491':moS==='\u4E2D\u7B49'?'\u63D0\u4F9B\u4E00\u5B9A\u652F\u6491':'\u4FE1\u53F7\u8F83\u5F31')+'\uFF08\u6743\u91CD'+wt.model+'%\uFF09\uFF0C\n'+
-    'AI\u8BA4\u77E5\u5C42'+(aS==='\u5F3A'?'\u65B9\u5411\u8F83\u4E3A\u660E\u786E':aS==='\u4E2D\u7B49'?'\u6709\u4E00\u5B9A\u503E\u5411':'\u5224\u65AD\u5C1A\u4E0D\u660E\u6717')+'\uFF08\u7F6E\u4FE1\u5EA6'+(ai.confidence*100).toFixed(0)+'%\uFF0C\u6743\u91CD'+wt.ai+'%\uFF09\u3002\n\n'+
-    '\u7384\u5B66\u4FE1\u53F7'+mysticT+'\uFF08\u6743\u91CD'+wt.mystic+'%\uFF0C\u5F31\u4FE1\u53F7\uFF09\u3002\n'+
-    '\u7EFC\u5408\u7F6E\u4FE1\u5EA6\uFF1A'+confT+'\uFF08'+(fusion.confidence*100).toFixed(0)+'%\uFF09\u3002';
-  $('aiText').textContent=text;
+  // ── Verdict hero ──
+  var biasLabel={bullish:'看涨偏多',bearish:'看跌偏空',neutral:'多空胶着'};
+  var biasIcon={bullish:'&#128200;',bearish:'&#128201;',neutral:'&#9878;&#65039;'};
+  var biasDesc={
+    bullish:'多数信号指向上行，多头占据主导',
+    bearish:'空头信号占优，下行风险较大',
+    neutral:'多空力量均衡，方向尚未明确'
+  };
+  var mainProb=fusion.bias==='bearish'?dn:up;
+  var mainLabel=fusion.bias==='bearish'?'下跌概率':'上涨概率';
+  var probClr=fusion.bias==='bullish'?'var(--green)':fusion.bias==='bearish'?'var(--red)':'var(--amber)';
 
-  var conclusion;
-  if(fusion.bias==='bullish'&&fusion.confidence>0.55)conclusion='\u2192 \u591A\u5934\u4FE1\u53F7\u5360\u4F18\uFF0C\u53EF\u8003\u8651\u9002\u5F53\u5E03\u5C40';
-  else if(fusion.bias==='bullish')conclusion='\u2192 \u504F\u591A\u4F46\u7F6E\u4FE1\u5EA6\u6709\u9650\uFF0C\u66F4\u9002\u5408\u8F7B\u4ED3\u8BD5\u63A2';
-  else if(fusion.bias==='bearish'&&fusion.confidence>0.55)conclusion='\u2192 \u7A7A\u5934\u4FE1\u53F7\u660E\u663E\uFF0C\u5EFA\u8BAE\u4FDD\u6301\u8C28\u614E\u6216\u51CF\u4ED3';
-  else if(fusion.bias==='bearish')conclusion='\u2192 \u504F\u7A7A\u4F46\u4FE1\u53F7\u4E0D\u5145\u5206\uFF0C\u5EFA\u8BAE\u89C2\u671B\u4E3A\u4E3B';
-  else conclusion='\u2192 \u591A\u7A7A\u4EA4\u7EC7\uFF0C\u5EFA\u8BAE\u89C2\u671B\u7B49\u5F85\u65B9\u5411\u660E\u786E';
-  $('aiAct').textContent=conclusion;
+  $('aiVerdict').innerHTML=
+    '<div class="av-icon">'+biasIcon[fusion.bias]+'</div>'+
+    '<div class="av-main">'+
+      '<div class="av-label">综合判断</div>'+
+      '<div class="av-text '+fusion.bias+'">'+biasLabel[fusion.bias]+'</div>'+
+      '<div style="font-size:.78rem;color:var(--text2);margin-top:2px">'+biasDesc[fusion.bias]+'</div>'+
+      '<div class="av-conf">'+
+        '<span style="font-size:.68rem;color:var(--text3)">置信度</span>'+
+        '<div class="av-conf-bar"><div class="av-conf-fill" style="width:'+confPct+'%;background:'+confClr+'"></div></div>'+
+        '<span class="av-conf-val" style="color:'+confClr+'">'+confPct+'%</span>'+
+      '</div>'+
+    '</div>'+
+    '<div class="av-prob">'+
+      '<div class="av-prob-num" style="color:'+probClr+'">'+mainProb+'%</div>'+
+      '<div class="av-prob-label">'+mainLabel+'</div>'+
+    '</div>';
+
+  // ── Signal badges ──
+  function sigClass(p){return p>0.55?'bullish':p<0.45?'bearish':'neutral'}
+  function tagClass(p){return p>0.55?'up':p<0.45?'down':'flat'}
+  function tagText(p){return p>0.55?'偏多':p<0.45?'偏空':'中性'}
+
+  var sigData=[
+    {icon:'&#128202;',name:'市场信号',val:market.up_prob,weight:wt.market,
+      detail:'MACD '+(market.macd.hist>0?'多头':'空头')+' · MA'+(market.maCross.cross==='golden'?'金叉':market.maCross.cross==='death'?'死叉':(market.maCross.sig>0.5?'多排':'空排'))+' · 量比'+market.vol.ratio.toFixed(1)+'x'},
+    {icon:'&#129518;',name:'数据模型',val:model.up_prob,weight:wt.model,
+      detail:'RSI '+model.rsi.value.toFixed(0)+(model.rsi.value<30?' 超卖':model.rsi.value>70?' 超买':'')+' · BB%B '+(model.boll.pctB*100).toFixed(0)+'% · 动量'+(model.mom.roc>0?'+':'')+  (model.mom.roc*100).toFixed(1)+'%'},
+    {icon:'&#129302;',name:'AI 认知',val:ai.up_prob,weight:wt.ai,
+      detail:'趋势一致'+(ai.trend.consistency*100).toFixed(0)+'% · 波动'+(ai.volRatio>1.5?'高':ai.volRatio<0.7?'低':'正常')+' · 价位'+(ai.sr.position<0.3?'近支撑':ai.sr.position>0.7?'近阻力':'中间')},
+    {icon:'&#128302;',name:'玄学情绪',val:mystic.score,weight:wt.mystic,
+      detail:(STATE.mysticType==='iching'?'周易':STATE.mysticType==='tarot'?'塔罗':'双系统')+' · 弱信号参考'}
+  ];
+
+  var sigHtml='';
+  for(var i=0;i<sigData.length;i++){
+    var s=sigData[i];
+    sigHtml+='<div class="ai-sig '+sigClass(s.val)+'">'+
+      '<div class="as-icon">'+s.icon+'</div>'+
+      '<div style="flex:1">'+
+        '<div class="as-name">'+s.name+' · '+s.weight+'%</div>'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-top:3px">'+
+          '<span class="as-val">'+(s.val*100).toFixed(1)+'%</span>'+
+          '<span class="as-tag '+tagClass(s.val)+'">'+tagText(s.val)+'</span>'+
+        '</div>'+
+        '<div class="as-detail">'+s.detail+'</div>'+
+      '</div>'+
+    '</div>';
+  }
+  $('aiSignals').innerHTML=sigHtml;
+
+  // ── Key factors (亮点/风险标签) ──
+  var factors=[];
+  if(market.macd.hist>0&&market.macd.hist>0) factors.push({t:'MACD 多头',c:'pos'});
+  else if(market.macd.hist<0) factors.push({t:'MACD 空头',c:'neg'});
+  if(market.maCross.cross==='golden') factors.push({t:'MA 金叉',c:'pos'});
+  if(market.maCross.cross==='death') factors.push({t:'MA 死叉',c:'neg'});
+  if(market.vol.ratio>1.3&&market.vol.priceDir>0) factors.push({t:'放量上涨',c:'pos'});
+  if(market.vol.ratio>1.3&&market.vol.priceDir<0) factors.push({t:'放量下跌',c:'neg'});
+  if(market.vol.ratio<0.6) factors.push({t:'缩量观望',c:'neu'});
+  if(model.rsi.value<30) factors.push({t:'RSI 超卖',c:'pos'});
+  if(model.rsi.value>70) factors.push({t:'RSI 超买',c:'neg'});
+  if(model.boll.pctB<0.15) factors.push({t:'触及布林下轨',c:'pos'});
+  if(model.boll.pctB>0.85) factors.push({t:'触及布林上轨',c:'neg'});
+  if(ai.sr.position<0.25) factors.push({t:'接近支撑位',c:'pos'});
+  if(ai.sr.position>0.75) factors.push({t:'接近阻力位',c:'neg'});
+  if(ai.volRatio>1.5) factors.push({t:'波动率偏高',c:'neg'});
+  if(ai.trend.consistency>0.7) factors.push({t:'趋势一致性强',c:'pos'});
+  if(ai.trend.consistency<0.3) factors.push({t:'趋势一致性强(空)',c:'neg'});
+  if(fusion.disagreement>0.2) factors.push({t:'信号分歧大',c:'neg'});
+  if(fusion.disagreement<0.08) factors.push({t:'信号高度共识',c:'pos'});
+
+  if(factors.length>0){
+    var fHtml='<div class="af-title">&#128273; 关键因子</div><div class="ai-factor-list">';
+    for(var i=0;i<factors.length;i++){
+      fHtml+='<div class="ai-factor '+factors[i].c+'">'+factors[i].t+'</div>';
+    }
+    fHtml+='</div>';
+    $('aiFactors').innerHTML=fHtml;
+    $('aiFactors').style.display='block';
+  }else{
+    $('aiFactors').style.display='none';
+  }
+
+  // ── Action conclusion ──
+  var conclusion,cIcon;
+  if(fusion.bias==='bullish'&&fusion.confidence>0.55){conclusion='多头信号占优，可考虑适当布局';cIcon='&#128640;'}
+  else if(fusion.bias==='bullish'){conclusion='偏多但置信度有限，更适合轻仓试探';cIcon='&#128064;'}
+  else if(fusion.bias==='bearish'&&fusion.confidence>0.55){conclusion='空头信号明显，建议保持谨慎或减仓';cIcon='&#128721;'}
+  else if(fusion.bias==='bearish'){conclusion='偏空但信号不充分，建议观望为主';cIcon='&#9888;&#65039;'}
+  else{conclusion='多空交织，建议观望等待方向明确';cIcon='&#9203;'}
+  $('aiAct').innerHTML=cIcon+' '+conclusion;
   $('aiAct').className='ai-action '+fusion.bias;
 }
 
