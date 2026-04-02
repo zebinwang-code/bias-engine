@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>涨跌判断引擎 V2 | Up/Down Bias Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet"></noscript>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08090e;--bg2:#0f1019;--bg3:#171825;--bg4:#1f2035;
+  --text:#e4e4f0;--text2:#9090a8;--text3:#5a5a78;
+  --green:#00e89d;--green2:#00c07a;--green-g:rgba(0,232,157,.12);
+  --red:#ff4466;--red2:#dd2244;--red-g:rgba(255,68,102,.12);
+  --amber:#ffb830;--amber-g:rgba(255,184,48,.10);
+  --blue:#4d8eff;--blue-g:rgba(77,142,255,.10);
+  --purple:#a855f7;--purple-g:rgba(168,85,247,.10);
+  --cyan:#22d3ee;--cyan-g:rgba(34,211,238,.10);
+  --border:rgba(255,255,255,.06);--border2:rgba(255,255,255,.1);
+  --radius:14px;--radius-sm:10px;
+  --font-mono:'JetBrains Mono',monospace;
+  --font-sans:'Outfit','Noto Sans SC',sans-serif;
+}
+html{font-size:15px;scroll-behavior:smooth}
+body{
+  font-family:var(--font-sans);background:var(--bg);color:var(--text);
+  min-height:100vh;overflow-x:hidden;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%,rgba(77,142,255,.05),transparent),
+    radial-gradient(ellipse 50% 40% at 85% 100%,rgba(0,232,157,.03),transparent);
+}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+a{color:var(--blue);text-decoration:none}
+.app{max-width:1140px;margin:0 auto;padding:28px 20px 60px}
+
+/* Header */
+.header{text-align:center;margin-bottom:32px}
+.logo{font-family:var(--font-mono);font-size:.65rem;letter-spacing:8px;text-transform:uppercase;color:var(--blue);opacity:.7}
+.title{font-size:2rem;font-weight:800;letter-spacing:-1px;margin:6px 0 4px}
+.title em{font-style:normal;background:linear-gradient(135deg,var(--green),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{color:var(--text3);font-size:.78rem;font-family:var(--font-mono)}
+
+/* Settings bar */
+.settings-bar{display:flex;gap:10px;justify-content:center;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.api-btn{padding:8px 16px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--bg2);color:var(--text2);font-size:.78rem;cursor:pointer;transition:all .2s;font-family:var(--font-sans)}
+.api-btn:hover{border-color:var(--blue);color:var(--blue)}
+.mode-toggle{display:flex;border:1px solid var(--border2);border-radius:var(--radius-sm);overflow:hidden}
+.mode-toggle button{padding:8px 18px;border:none;background:transparent;color:var(--text3);font-size:.78rem;cursor:pointer;transition:all .2s;font-family:var(--font-sans)}
+.mode-toggle button.active{background:var(--blue);color:#fff}
+
+/* API Panel */
+.api-panel{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;max-width:600px;margin-left:auto;margin-right:auto}
+.api-panel.open{display:block;animation:fadeIn .3s}
+.api-panel h3{font-size:.85rem;margin-bottom:12px}
+.api-panel .field{margin-bottom:12px}
+.api-panel label{display:block;font-size:.72rem;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
+.api-panel input{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:.82rem;outline:none}
+.api-panel input:focus{border-color:var(--blue)}
+.api-panel .hint{font-size:.7rem;color:var(--text3);margin-top:4px;line-height:1.5}
+.api-panel .status{padding:8px 12px;border-radius:var(--radius-sm);font-size:.78rem;margin-top:8px}
+.api-panel .status.ok{background:var(--green-g);color:var(--green)}
+
+/* Search */
+.search-area{display:flex;gap:10px;justify-content:center;align-items:center;margin:16px 0 12px;flex-wrap:wrap}
+.search-box{position:relative;width:360px}
+.search-box input{width:100%;padding:14px 18px 14px 42px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:1rem;font-family:var(--font-mono);outline:none;transition:all .25s;letter-spacing:1px}
+.search-box input::placeholder{color:var(--text3);font-family:var(--font-sans);letter-spacing:0;font-size:.88rem}
+.search-box input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-g)}
+.search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none}
+.btn-go{padding:14px 32px;border:none;border-radius:var(--radius);background:linear-gradient(135deg,var(--blue) 0%,var(--cyan) 100%);color:#fff;font-size:.88rem;font-weight:600;cursor:pointer;transition:all .25s}
+.btn-go:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(34,211,238,.2)}
+.btn-go:active{transform:scale(.97)}
+.btn-go:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.period-sel{padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:.82rem;cursor:pointer;outline:none}
+
+/* Quick tickers */
+.quick-row{display:flex;gap:7px;justify-content:center;margin-bottom:24px;flex-wrap:wrap}
+.quick-row button{padding:5px 14px;border:1px solid var(--border);border-radius:20px;background:transparent;color:var(--text3);font-size:.72rem;font-family:var(--font-mono);cursor:pointer;transition:all .2s}
+.quick-row button:hover{border-color:var(--cyan);color:var(--cyan);background:var(--cyan-g)}
+
+/* Plus Panel */
+.plus-panel{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}
+.plus-panel.open{display:block;animation:fadeIn .3s}
+.plus-title{font-size:.7rem;text-transform:uppercase;letter-spacing:3px;color:var(--cyan);margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.weight-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:600px){.weight-grid{grid-template-columns:1fr}}
+.weight-item{padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm)}
+.weight-item .wi-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.weight-item .wi-label{font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:6px}
+.weight-item .wi-val{font-family:var(--font-mono);font-weight:700;font-size:1rem}
+.weight-item input[type=range]{width:100%;height:4px;-webkit-appearance:none;background:var(--bg3);border-radius:2px;outline:none;margin:8px 0}
+.weight-item input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;cursor:pointer;border:2px solid var(--bg)}
+.weight-item.market input::-webkit-slider-thumb{background:var(--blue)}
+.weight-item.model input::-webkit-slider-thumb{background:var(--purple)}
+.weight-item.ai input::-webkit-slider-thumb{background:var(--green)}
+.weight-item.mystic input::-webkit-slider-thumb{background:var(--amber)}
+.weight-item .wi-desc{font-size:.7rem;color:var(--text3);line-height:1.6;margin-top:6px}
+.weight-item .wi-formula{font-family:var(--font-mono);font-size:.68rem;color:var(--text3);background:var(--bg2);padding:8px 10px;border-radius:6px;margin-top:8px;line-height:1.6;white-space:pre-wrap}
+.weight-total{margin-top:14px;text-align:center;font-family:var(--font-mono);font-size:.82rem;color:var(--text2)}
+.weight-total span{font-weight:700}
+.mystic-choice{margin-top:14px;display:flex;gap:8px;justify-content:center}
+.mystic-choice button{padding:8px 20px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text2);font-size:.8rem;cursor:pointer;transition:all .2s}
+.mystic-choice button.active{border-color:var(--amber);color:var(--amber);background:var(--amber-g)}
+
+/* Loading */
+.loading{display:none;text-align:center;padding:60px 20px}
+.loading.active{display:block;animation:fadeIn .3s}
+.ld-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 16px}
+.ld-text{color:var(--text2);font-size:.82rem;font-family:var(--font-mono)}
+.ld-step{color:var(--text3);font-size:.72rem;margin-top:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* Result */
+.result{display:none}.result.show{display:block;animation:fadeIn .4s}
+
+/* Top card */
+.top-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-bottom:16px;position:relative;overflow:hidden}
+.top-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.top-card.bullish::before{background:linear-gradient(90deg,var(--green),var(--cyan))}
+.top-card.bearish::before{background:linear-gradient(90deg,var(--red),var(--red2))}
+.top-card.neutral::before{background:linear-gradient(90deg,var(--amber),#e0a020)}
+.top-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:24px}
+.tk-info h2{font-family:var(--font-mono);font-size:1.5rem;font-weight:700}
+.tk-info .tk-name{color:var(--text2);font-size:.82rem;margin-top:3px}
+.tk-info .tk-src{color:var(--text3);font-size:.68rem;font-family:var(--font-mono);margin-top:2px}
+.bias-box{text-align:right}
+.bias-lbl{font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:4px}
+.bias-val{font-size:1.4rem;font-weight:700}
+.bias-val.bullish{color:var(--green)}.bias-val.bearish{color:var(--red)}.bias-val.neutral{color:var(--amber)}
+.period-tag{padding:5px 12px;border-radius:16px;font-size:.7rem;font-family:var(--font-mono);background:var(--bg3);border:1px solid var(--border);color:var(--text3);display:inline-block;margin-right:8px}
+
+/* Prob bar */
+.prob-wrap{margin-bottom:4px}
+.prob-bar{display:flex;height:44px;background:var(--bg);border-radius:8px;overflow:hidden}
+.prob-up,.prob-down{display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-weight:700;font-size:.88rem;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);transition:width .8s cubic-bezier(.22,1,.36,1);min-width:44px}
+.prob-up{background:linear-gradient(90deg,var(--green2),var(--green))}
+.prob-down{background:linear-gradient(90deg,var(--red),var(--red2))}
+.prob-labels{display:flex;justify-content:space-between;font-size:.68rem;color:var(--text3);margin-top:6px}
+
+/* Signal grid */
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:700px){.sig-grid{grid-template-columns:1fr}}
+.sig-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;position:relative;overflow:hidden}
+.sig-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.sig-card.market::before{background:var(--blue)}
+.sig-card.model::before{background:var(--purple)}
+.sig-card.ai::before{background:var(--green)}
+.sig-card.mystic::before{background:var(--amber)}
+.sig-card .sc-icon{font-size:1.1rem;margin-bottom:6px}
+.sig-card .sc-title{font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:12px}
+.sig-card .sc-prob{font-family:var(--font-mono);font-size:1.3rem;font-weight:700;margin-bottom:3px}
+.sig-card .sc-str{font-size:.75rem;color:var(--text2)}
+.sig-mini{margin-top:10px;height:5px;background:var(--bg);border-radius:3px;overflow:hidden}
+.sig-mini .fill{height:100%;border-radius:3px;transition:width .6s ease}
+
+/* Detail panel (Plus mode) */
+.sig-detail{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:.75rem;color:var(--text2);line-height:1.7}
+.sig-detail.open{display:block;animation:fadeIn .2s}
+.sig-detail .sd-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0}
+.sig-detail .sd-label{color:var(--text3)}
+.sig-detail .sd-val{font-family:var(--font-mono);font-weight:600}
+.sig-detail .sd-formula{font-family:var(--font-mono);font-size:.66rem;color:var(--text3);background:var(--bg);padding:8px 10px;border-radius:6px;margin-top:8px;line-height:1.6;white-space:pre-wrap}
+.sig-toggle{display:none;margin-top:10px;background:none;border:1px solid var(--border);border-radius:6px;padding:5px 12px;color:var(--text3);font-size:.68rem;cursor:pointer;transition:all .2s;width:100%}
+.sig-toggle:hover{border-color:var(--text3);color:var(--text2)}
+
+/* Quality */
+.qual-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:14px}
+.qual-card .qc-title{font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:14px}
+.q-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.q-row:last-child{border:none}
+.q-row .ql{font-size:.82rem;color:var(--text2)}
+.q-row .qv{font-family:var(--font-mono);font-weight:600;font-size:.85rem}
+
+/* Mystic card */
+.mystic-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:14px;position:relative;overflow:hidden}
+.mystic-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--amber),#e07020,var(--amber))}
+.mystic-card .mc-title{font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:14px}
+.mystic-body{font-size:.85rem;line-height:1.8;color:var(--text2)}
+.hex-display{display:flex;align-items:center;gap:16px;margin:12px 0;padding:14px;background:var(--bg);border-radius:var(--radius-sm)}
+.hex-symbol{font-size:2.2rem;line-height:1}
+.hex-name{font-weight:700;font-size:1rem;color:var(--text)}
+.hex-desc{font-size:.78rem;color:var(--text2);margin-top:2px}
+.tarot-cards{display:flex;gap:10px;margin:12px 0;flex-wrap:wrap}
+.tarot-c{flex:1;min-width:120px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);text-align:center}
+.tarot-c .tc-pos{font-size:.65rem;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:6px}
+.tarot-c .tc-num{font-family:var(--font-mono);font-size:1.6rem;font-weight:700;color:var(--amber);margin-bottom:4px}
+.tarot-c .tc-name{font-size:.78rem;font-weight:600;color:var(--text);margin-bottom:2px}
+.tarot-c .tc-dir{font-size:.68rem}.tarot-c .tc-dir.up{color:var(--green)}.tarot-c .tc-dir.rev{color:var(--red)}
+.tarot-c .tc-mean{font-size:.7rem;color:var(--text3);margin-top:4px}
+.mystic-verdict{margin-top:12px;font-size:.82rem;font-weight:500}
+
+/* AI card */
+.ai-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:14px;position:relative;overflow:hidden}
+.ai-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--blue),var(--purple),var(--green))}
+.ai-card .ac-title{font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:14px}
+.ai-text{font-size:.88rem;line-height:1.85;color:var(--text);white-space:pre-line}
+.ai-action{margin-top:14px;padding:12px 16px;border-radius:var(--radius-sm);font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:8px}
+.ai-action.bullish{background:var(--green-g);color:var(--green);border:1px solid rgba(0,232,157,.18)}
+.ai-action.bearish{background:var(--red-g);color:var(--red);border:1px solid rgba(255,68,102,.18)}
+.ai-action.neutral{background:var(--amber-g);color:var(--amber);border:1px solid rgba(255,184,48,.18)}
+
+/* Data source health dashboard */
+.ds-dashboard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:14px}
+.ds-dashboard .ds-title{font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:14px}
+.ds-chain{display:flex;flex-direction:column;gap:6px}
+.ds-item{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:var(--radius-sm);font-size:.78rem}
+.ds-item .ds-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ds-item .ds-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green-g)}
+.ds-item .ds-dot.fail{background:var(--red);box-shadow:0 0 6px var(--red-g)}
+.ds-item .ds-dot.skip{background:var(--text3)}
+.ds-item .ds-dot.wait{background:var(--amber);animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.ds-item .ds-name{font-weight:600;width:130px;color:var(--text)}
+.ds-item .ds-status{flex:1;color:var(--text2);font-family:var(--font-mono);font-size:.7rem}
+.ds-item .ds-time{color:var(--text3);font-family:var(--font-mono);font-size:.68rem;width:60px;text-align:right}
+.ds-item.active{border:1px solid var(--green);border-left:3px solid var(--green)}
+.ds-crossval{margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:var(--radius-sm);font-size:.72rem;color:var(--text2);line-height:1.6}
+.ds-crossval .cv-label{color:var(--text3);font-size:.65rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+
+/* Mini Chart */
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:14px}
+.chart-card .cc-title{font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:12px}
+.chart-card canvas{width:100%;height:160px;border-radius:var(--radius-sm)}
+.chart-info{display:flex;justify-content:space-between;margin-top:10px;font-size:.72rem;color:var(--text3);font-family:var(--font-mono)}
+.chart-info .ci-price{color:var(--text);font-weight:600;font-size:.85rem}
+.chart-info .ci-chg.up{color:var(--green)}.chart-info .ci-chg.down{color:var(--red)}
+
+/* Disclaimer */
+.disc{margin-top:14px;padding:12px 16px;background:rgba(255,184,48,.05);border:1px solid rgba(255,184,48,.12);border-radius:var(--radius-sm);font-size:.7rem;color:var(--text3);line-height:1.6}
+
+/* History */
+.hist-sec{margin-top:28px;display:none}.hist-sec.show{display:block}
+.hist-title{font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:12px}
+.hist-list{display:flex;flex-direction:column;gap:6px}
+.hist-item{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem;cursor:pointer;transition:all .2s}
+.hist-item:hover{border-color:var(--border2);background:var(--bg3)}
+.hist-item .hi-tk{font-family:var(--font-mono);font-weight:600;width:70px}
+.hist-item .hi-bias{width:56px;font-weight:600;font-size:.75rem}
+.hist-item .hi-prob{color:var(--text2);font-family:var(--font-mono);flex:1}
+.hist-item .hi-src{color:var(--text3);font-size:.65rem;font-family:var(--font-mono);width:50px;text-align:center}
+.hist-item .hi-time{color:var(--text3);font-size:.68rem;font-family:var(--font-mono)}
+.footer{text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid var(--border);font-size:.68rem;color:var(--text3)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo">Bias Engine v2.0</div>
+    <h1 class="title">涨跌<em>判断引擎</em></h1>
+    <div class="subtitle">Real Data · Multi-Signal Fusion · Plus Mode</div>
+  </div>
+
+  <div class="settings-bar">
+    <button class="api-btn" id="btnApiPanel" onclick="togglePanel('apiPanel')">&#9881; 数据源设置</button>
+    <div class="mode-toggle">
+      <button id="modeStd" class="active" onclick="setMode('std')">标准模式</button>
+      <button id="modePlus" onclick="setMode('plus')">Plus 模式</button>
+    </div>
+  </div>
+
+  <div class="api-panel" id="apiPanel">
+    <h3>多数据源配置 — 自动故障转移</h3>
+    <div class="hint" style="margin-bottom:14px;line-height:1.7;font-size:.72rem">
+      配置越多数据源，系统越稳定。当主数据源故障时自动切换到备用源。<br>
+      多源同时可用时会进行<b style="color:var(--cyan)">交叉验证</b>，提高数据可信度。全部免费。
+    </div>
+    <div class="field">
+      <label style="color:var(--blue)">&#9312; Alpha Vantage（主力源 · 美股/港股/A股）</label>
+      <input type="text" id="avKey" placeholder="API Key..." oninput="onApiKeyChange()">
+      <div class="hint">免费获取：<a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> 25次/天，全球股票日线+成交量</div>
+    </div>
+    <div class="field">
+      <label style="color:var(--purple)">&#9313; Twelve Data（备用源 · 高频次）</label>
+      <input type="text" id="tdKey" placeholder="API Key..." oninput="onApiKeyChange()">
+      <div class="hint">免费获取：<a href="https://twelvedata.com/pricing" target="_blank">twelvedata.com</a> 800次/天 · 8次/分钟，覆盖全球股票+ETF+指数</div>
+    </div>
+    <div class="field">
+      <label style="color:var(--green)">&#9314; Finnhub（备用源 · 高频次）</label>
+      <input type="text" id="fhKey" placeholder="API Key..." oninput="onApiKeyChange()">
+      <div class="hint">免费获取：<a href="https://finnhub.io/register" target="_blank">finnhub.io</a> 60次/分钟，美股日线+技术指标</div>
+    </div>
+    <div class="field">
+      <label style="color:var(--amber)">&#9315; FMP（备用源 · 基础数据）</label>
+      <input type="text" id="fmpKey" placeholder="API Key..." oninput="onApiKeyChange()">
+      <div class="hint">免费获取：<a href="https://site.financialmodelingprep.com/developer/docs" target="_blank">financialmodelingprep.com</a> 250次/天，全球股票+加密货币</div>
+    </div>
+    <div class="field">
+      <label>自动数据源（无需 Key）</label>
+      <div class="hint" style="line-height:1.8">
+        <b style="color:var(--cyan)">CoinGecko</b>：加密货币 OHLC（BTC/ETH 等自动识别）<br>
+        <b style="color:var(--cyan)">CoinCap</b>：加密货币备用源<br>
+        <b style="color:var(--text3)">模拟引擎</b>：兜底方案，所有 Key 失败时启用
+      </div>
+    </div>
+    <div id="apiStatus"></div>
+  </div>
+
+  <div class="search-area">
+    <div class="search-box">
+      <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="tickerInput" placeholder="输入代码 TSLA / 0700.HK / BTC" spellcheck="false" autocomplete="off">
+    </div>
+    <select class="period-sel" id="periodSel">
+      <option value="3">3 交易日</option>
+      <option value="5" selected>5 交易日</option>
+      <option value="10">10 交易日</option>
+    </select>
+    <button class="btn-go" id="btnGo" onclick="doAnalyze()">分析</button>
+  </div>
+  <div class="quick-row">
+    <button onclick="qp('TSLA')">TSLA</button>
+    <button onclick="qp('AAPL')">AAPL</button>
+    <button onclick="qp('NVDA')">NVDA</button>
+    <button onclick="qp('MSFT')">MSFT</button>
+    <button onclick="qp('SPY')">SPY</button>
+    <button onclick="qp('QQQ')">QQQ</button>
+    <button onclick="qp('0700.HK')">腾讯</button>
+    <button onclick="qp('BABA')">BABA</button>
+    <button onclick="qp('BTC')">BTC</button>
+    <button onclick="qp('ETH')">ETH</button>
+  </div>
+
+  <div class="plus-panel" id="plusPanel">
+    <div class="plus-title">&#9889; Plus 模式 — 自定义权重 &amp; 计算逻辑</div>
+    <div class="weight-grid">
+      <div class="weight-item market">
+        <div class="wi-head"><span class="wi-label">&#128202; 市场信号</span><span class="wi-val" id="wMarketVal" style="color:var(--blue)">40%</span></div>
+        <input type="range" min="0" max="80" value="40" id="wMarket" oninput="onWeightChange()">
+        <div class="wi-desc">基于趋势跟踪指标：MACD 多空方向、均线交叉（金叉/死叉）、成交量异动</div>
+        <div class="wi-formula">market_up = 0.4 x MACD信号 + 0.3 x MA交叉 + 0.3 x 量能
+MACD(12,26,9): 快线在信号线上方=多头
+MA交叉: SMA(5) > SMA(20) = 金叉看多
+量能: 近5日均量 / 20日均量 确认趋势</div>
+      </div>
+      <div class="weight-item model">
+        <div class="wi-head"><span class="wi-label">&#129518; 数据模型</span><span class="wi-val" id="wModelVal" style="color:var(--purple)">30%</span></div>
+        <input type="range" min="0" max="80" value="30" id="wModel" oninput="onWeightChange()">
+        <div class="wi-desc">基于均值回归指标：RSI 超买超卖、布林带位置、价格动量</div>
+        <div class="wi-formula">model_up = 0.4 x RSI信号 + 0.3 x 布林带 + 0.3 x 动量
+RSI(14): &lt;30=超卖看涨  &gt;70=超买看跌
+布林带%B: &lt;0.2=下轨看涨  &gt;0.8=上轨看跌
+动量: N日收益率方向与幅度</div>
+      </div>
+      <div class="weight-item ai">
+        <div class="wi-head"><span class="wi-label">&#129302; AI 认知</span><span class="wi-val" id="wAiVal" style="color:var(--green)">25%</span></div>
+        <input type="range" min="0" max="80" value="25" id="wAi" oninput="onWeightChange()">
+        <div class="wi-desc">基于模式识别：趋势一致性、波动率状态、支撑/阻力位距离</div>
+        <div class="wi-formula">ai_up = 0.35 x 趋势一致 + 0.35 x 波动率 + 0.3 x 支撑阻力
+趋势一致: 近N日涨跌方向一致性占比
+波动率: 当前ATR vs 历史ATR
+支撑阻力: 距最近支撑/阻力位的比例
+confidence = 三项信号的一致程度</div>
+      </div>
+      <div class="weight-item mystic">
+        <div class="wi-head"><span class="wi-label">&#128302; 玄学情绪</span><span class="wi-val" id="wMysticVal" style="color:var(--amber)">5%</span></div>
+        <input type="range" min="0" max="20" value="5" id="wMystic" oninput="onWeightChange()">
+        <div class="wi-desc">弱信号层 — 基于周易卦象或塔罗牌的直觉性参考，建议权重不超过10%</div>
+        <div class="wi-formula">mystic_bias = 卦象/牌面综合得分 [-1, +1]
+最终影响 = mystic_bias x weight（归一化后）
+权重5%时最大调整 ±2.5%，由权重直接控制</div>
+      </div>
+    </div>
+    <div class="weight-total">合计权重：<span id="wTotal">100%</span>（自动归一化）</div>
+    <div class="mystic-choice">
+      <button id="mcIching" class="active" onclick="setMystic('iching')">&#9775; 周易卦象</button>
+      <button id="mcTarot" onclick="setMystic('tarot')">&#127183; 塔罗牌</button>
+      <button id="mcBoth" onclick="setMystic('both')">&#9775;+&#127183; 双系统</button>
+    </div>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="ld-spinner"></div>
+    <div class="ld-text" id="ldText">正在获取数据...</div>
+    <div class="ld-step" id="ldStep"></div>
+  </div>
+
+  <div class="result" id="result">
+    <div class="data-warn" id="dataWarn" style="display:none;padding:12px 16px;background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.2);border-radius:var(--radius-sm);font-size:.78rem;color:var(--red);margin-bottom:14px;line-height:1.6"></div>
+    <div class="top-card" id="topCard">
+      <div class="top-head">
+        <div class="tk-info">
+          <h2 id="rTicker"></h2>
+          <div class="tk-name" id="rName"></div>
+          <div class="tk-src" id="rSrc"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span class="period-tag" id="rPeriod"></span>
+          <div class="bias-box">
+            <div class="bias-lbl">当前偏向</div>
+            <div class="bias-val" id="rBias"></div>
+          </div>
+        </div>
+      </div>
+      <div class="prob-wrap">
+        <div class="prob-bar"><div class="prob-up" id="probUp"></div><div class="prob-down" id="probDown"></div></div>
+        <div class="prob-labels"><span>&#128200; 上涨概率</span><span>&#128201; 下跌概率</span></div>
+      </div>
+    </div>
+
+    <div class="chart-card" id="chartCard" style="display:none">
+      <div class="cc-title">&#128200; 价格走势（近30日）</div>
+      <canvas id="priceChart"></canvas>
+      <div class="chart-info">
+        <span class="ci-price" id="chartPrice"></span>
+        <span class="ci-chg" id="chartChg"></span>
+        <span id="chartRange"></span>
+      </div>
+    </div>
+
+    <div class="sig-grid">
+      <div class="sig-card market">
+        <div class="sc-icon">&#128202;</div><div class="sc-title">市场信号层</div>
+        <div class="sc-prob" id="smProb"></div><div class="sc-str" id="smStr"></div>
+        <div class="sig-mini"><div class="fill" id="smBar" style="background:var(--blue)"></div></div>
+        <div class="sig-detail" id="smDetail"></div>
+        <button class="sig-toggle" onclick="toggleDetail('smDetail',this)">查看计算逻辑 &#9660;</button>
+      </div>
+      <div class="sig-card model">
+        <div class="sc-icon">&#129518;</div><div class="sc-title">数据模型层</div>
+        <div class="sc-prob" id="moProb"></div><div class="sc-str" id="moStr"></div>
+        <div class="sig-mini"><div class="fill" id="moBar" style="background:var(--purple)"></div></div>
+        <div class="sig-detail" id="moDetail"></div>
+        <button class="sig-toggle" onclick="toggleDetail('moDetail',this)">查看计算逻辑 &#9660;</button>
+      </div>
+      <div class="sig-card ai">
+        <div class="sc-icon">&#129302;</div><div class="sc-title">AI 认知层</div>
+        <div class="sc-prob" id="aiProb"></div><div class="sc-str" id="aiStr"></div>
+        <div class="sig-mini"><div class="fill" id="aiBar" style="background:var(--green)"></div></div>
+        <div class="sig-detail" id="aiDetail"></div>
+        <button class="sig-toggle" onclick="toggleDetail('aiDetail',this)">查看计算逻辑 &#9660;</button>
+      </div>
+      <div class="sig-card mystic">
+        <div class="sc-icon">&#128302;</div><div class="sc-title">玄学情绪层</div>
+        <div class="sc-prob" id="myBias"></div><div class="sc-str" id="myStr"></div>
+        <div class="sig-mini"><div class="fill" id="myBar" style="background:var(--amber)"></div></div>
+      </div>
+    </div>
+
+    <div class="qual-card">
+      <div class="qc-title">&#9888;&#65039; 信号质量</div>
+      <div class="q-row"><span class="ql">信号分歧度</span><span class="qv" id="qDis"></span></div>
+      <div class="q-row"><span class="ql">数据完整度</span><span class="qv" id="qComp"></span></div>
+      <div class="q-row"><span class="ql">综合置信度</span><span class="qv" id="qConf"></span></div>
+      <div class="q-row"><span class="ql">共识强度</span><span class="qv" id="qCons"></span></div>
+    </div>
+
+    <div class="mystic-card" id="mysticCard">
+      <div class="mc-title">&#128302; 玄学详情</div>
+      <div class="mystic-body" id="mysticBody"></div>
+    </div>
+
+    <div class="ds-dashboard" id="dsDashboard" style="display:none">
+      <div class="ds-title">&#128225; 数据源状态 — 故障转移链</div>
+      <div class="ds-chain" id="dsChain"></div>
+      <div class="ds-crossval" id="dsCrossval" style="display:none">
+        <div class="cv-label">&#128269; 交叉验证</div>
+        <div id="cvContent"></div>
+      </div>
+    </div>
+
+    <div class="ai-card">
+      <div class="ac-title">&#129504; AI 综合研判</div>
+      <div class="ai-text" id="aiText"></div>
+      <div class="ai-action" id="aiAct"></div>
+    </div>
+
+    <div class="disc">&#9888;&#65039; 免责声明：本工具仅供学习研究参考，不构成任何投资建议。技术指标基于历史数据计算，不代表未来走势。玄学信号纯属趣味性参考。投资有风险，决策需谨慎。</div>
+  </div>
+
+  <div class="hist-sec" id="histSec">
+    <div class="hist-title">&#128203; 历史记录</div>
+    <div class="hist-list" id="histList"></div>
+  </div>
+
+  <div class="footer">涨跌判断引擎 v2.0 · Real Data + Multi-Signal Fusion + I Ching &amp; Tarot</div>
+</div>
+
+<script>
+/* ════════════════════════════════════
+   STATE
+   ════════════════════════════════════ */
+var STATE = {
+  mode: 'std',
+  mysticType: 'iching',
+  weights: { market: 40, model: 30, ai: 25, mystic: 5 },
+  apiKeys: { av:'', td:'', fh:'', fmp:'' },
+  lastData: null,
+  history: [],
+  fetchLog: [],  // track each provider attempt
+};
+
+var TICKERS_DB = {
+  TSLA:{name:'特斯拉 Tesla',sec:'新能源汽车',vol:.85},
+  AAPL:{name:'苹果 Apple',sec:'科技',vol:.45},
+  NVDA:{name:'英伟达 NVIDIA',sec:'半导体/AI',vol:.80},
+  MSFT:{name:'微软 Microsoft',sec:'科技',vol:.40},
+  GOOG:{name:'谷歌 Alphabet',sec:'科技',vol:.50},
+  AMZN:{name:'亚马逊 Amazon',sec:'电商/云',vol:.55},
+  META:{name:'Meta Platforms',sec:'社交/AI',vol:.65},
+  SPY:{name:'S&P 500 ETF',sec:'指数',vol:.30},
+  QQQ:{name:'纳斯达克100 ETF',sec:'指数',vol:.40},
+  BABA:{name:'阿里巴巴 ADR',sec:'电商',vol:.70},
+  BTC:{name:'比特币 Bitcoin',sec:'加密货币',vol:.95},
+  ETH:{name:'以太坊 Ethereum',sec:'加密货币',vol:.90},
+  AMD:{name:'AMD Inc.',sec:'半导体',vol:.75},
+  PLTR:{name:'Palantir',sec:'AI/数据',vol:.80},
+  '0700.HK':{name:'腾讯控股',sec:'科技/游戏',vol:.60},
+  '9988.HK':{name:'阿里巴巴-SW',sec:'电商',vol:.65},
+  '3690.HK':{name:'美团-W',sec:'本地生活',vol:.70},
+};
+var CRYPTO_LIST = ['BTC','ETH','SOL','DOGE','XRP','ADA','DOT','AVAX','MATIC','LINK','UNI','ATOM'];
+var COINGECKO_IDS = {BTC:'bitcoin',ETH:'ethereum',SOL:'solana',DOGE:'dogecoin',XRP:'ripple',ADA:'cardano',DOT:'polkadot',AVAX:'avalanche-2',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap',ATOM:'cosmos'};
+
+/* ════════════════════════════════════
+   UTILS
+   ════════════════════════════════════ */
+function clamp(v,mn,mx){return Math.min(Math.max(v,mn),mx)}
+function pct(v){return (v*100).toFixed(1)+'%'}
+function hashStr(s){var h=0;for(var i=0;i<s.length;i++)h=((h<<5)-h+s.charCodeAt(i))|0;return h}
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+function $(id){return document.getElementById(id)}
+function strengthWord(p){var d=Math.abs(p-0.5);return d>0.15?'强':d>0.08?'中等':'弱'}
+function dirWord(p){return p>=0.55?'偏多':p<=0.45?'偏空':'中性'}
+
+/* ════════════════════════════════════
+   TECHNICAL ANALYSIS
+   ════════════════════════════════════ */
+function calcSMA(data,period){
+  var res=[];
+  for(var i=0;i<data.length;i++){
+    if(i<period-1){res.push(null);continue}
+    var sum=0;for(var j=i-period+1;j<=i;j++)sum+=data[j];
+    res.push(sum/period);
+  }
+  return res;
+}
+function calcEMA(data,period){
+  var k=2/(period+1),res=[data[0]];
+  for(var i=1;i<data.length;i++)res.push(data[i]*k+res[i-1]*(1-k));
+  return res;
+}
+function calcRSI(closes,period){
+  period=period||14;
+  if(closes.length<period+1)return{value:50,signal:0.5};
+  var gains=0,losses=0;
+  for(var i=1;i<=period;i++){var d=closes[i]-closes[i-1];if(d>0)gains+=d;else losses-=d}
+  var ag=gains/period,al=losses/period;
+  for(var i=period+1;i<closes.length;i++){
+    var d=closes[i]-closes[i-1];
+    ag=(ag*(period-1)+(d>0?d:0))/period;
+    al=(al*(period-1)+(d<0?-d:0))/period;
+  }
+  var rs=al===0?100:ag/al,rsi=100-100/(1+rs);
+  var sig;
+  if(rsi<30)sig=0.7+(30-rsi)/30*0.2;
+  else if(rsi>70)sig=0.3-(rsi-70)/30*0.2;
+  else sig=0.3+(70-rsi)/40*0.4;
+  return{value:rsi,signal:clamp(sig,0.1,0.9)};
+}
+function calcMACD(closes){
+  if(closes.length<26)return{macd:0,signal:0,hist:0,sig:0.5};
+  var ema12=calcEMA(closes,12),ema26=calcEMA(closes,26);
+  var macdLine=ema12.map(function(v,i){return v-ema26[i]});
+  var signalLine=calcEMA(macdLine.slice(17),9);
+  var last=macdLine.length-1,si=signalLine.length-1;
+  var mc=macdLine[last],sg=signalLine[si],hist=mc-sg;
+  var prevHist=macdLine[last-1]-signalLine[si-1];
+  var signal;
+  if(hist>0&&hist>prevHist)signal=0.75;
+  else if(hist>0)signal=0.62;
+  else if(hist<0&&hist<prevHist)signal=0.25;
+  else if(hist<0)signal=0.38;
+  else signal=0.5;
+  return{macd:mc,signal:sg,hist:hist,sig:signal};
+}
+function calcBollinger(closes,period){
+  period=period||20;
+  if(closes.length<period)return{upper:0,middle:0,lower:0,pctB:0.5,sig:0.5};
+  var sma=calcSMA(closes,period),last=closes.length-1,mid=sma[last];
+  var sumSq=0;for(var i=last-period+1;i<=last;i++)sumSq+=(closes[i]-mid)*(closes[i]-mid);
+  var std=Math.sqrt(sumSq/period);
+  var upper=mid+2*std,lower=mid-2*std;
+  var pctB=std===0?0.5:(closes[last]-lower)/(upper-lower);
+  pctB=clamp(pctB,0,1);
+  // 线性映射：pctB 0→0.78, 0.5→0.50, 1→0.22，超买超卖区加强
+  var sig;
+  if(pctB<0.2) sig=0.72+(0.2-pctB)/0.2*0.08; // 0.72~0.80
+  else if(pctB>0.8) sig=0.28-(pctB-0.8)/0.2*0.08; // 0.28~0.20
+  else sig=0.72-(pctB-0.2)/0.6*0.44; // 0.72→0.28 线性过渡
+  return{upper:upper,middle:mid,lower:lower,pctB:pctB,sig:clamp(sig,0.15,0.85)};
+}
+function calcMACross(closes){
+  if(closes.length<20)return{sma5:0,sma20:0,cross:'none',sig:0.5};
+  var sma5=calcSMA(closes,5),sma20=calcSMA(closes,20);
+  var last=closes.length-1;
+  var c5=sma5[last],c20=sma20[last],p5=sma5[last-1],p20=sma20[last-1];
+  var cross='none',sig=0.5;
+  if(c5>c20&&p5<=p20){cross='golden';sig=0.78}
+  else if(c5<c20&&p5>=p20){cross='death';sig=0.22}
+  else if(c5>c20){sig=0.6+Math.min((c5/c20-1)*10,0.15)}
+  else{sig=0.4-Math.min((c20/c5-1)*10,0.15)}
+  return{sma5:c5,sma20:c20,cross:cross,sig:clamp(sig,0.15,0.85)};
+}
+function calcVolume(volumes,closes){
+  if(volumes.length<20)return{ratio:1,sig:0.5,priceDir:0};
+  var recent=0;for(var i=volumes.length-5;i<volumes.length;i++)recent+=volumes[i];recent/=5;
+  var avg20=0;for(var i=volumes.length-20;i<volumes.length;i++)avg20+=volumes[i];avg20/=20;
+  var ratio=avg20===0?1:recent/avg20;
+  // 结合价格方向：计算近5日价格变化方向
+  var priceDir=0;
+  if(closes&&closes.length>=5){
+    var p0=closes[closes.length-5],p1=closes[closes.length-1];
+    priceDir=p1>p0?1:(p1<p0?-1:0);
+  }
+  var sig=0.5;
+  if(ratio>1.3){
+    // 放量：方向跟随价格
+    sig=priceDir>0?0.65:(priceDir<0?0.35:0.5);
+  }else if(ratio<0.6){
+    // 缩量：趋势可能减弱，微弱反向信号
+    sig=priceDir>0?0.45:(priceDir<0?0.55:0.5);
+  }
+  return{ratio:ratio,sig:sig,priceDir:priceDir};
+}
+function calcMomentum(closes,period){
+  if(closes.length<period+1)return{roc:0,sig:0.5};
+  var last=closes.length-1;
+  var roc=(closes[last]-closes[last-period])/closes[last-period];
+  return{roc:roc,sig:clamp(0.5+roc*2,0.1,0.9)};
+}
+function calcATR(highs,lows,closes,period){
+  period=period||14;
+  if(closes.length<period+1)return{current:0,avg:0};
+  var trs=[];
+  for(var i=1;i<closes.length;i++){
+    trs.push(Math.max(highs[i]-lows[i],Math.abs(highs[i]-closes[i-1]),Math.abs(lows[i]-closes[i-1])));
+  }
+  var atr=0;for(var i=trs.length-period;i<trs.length;i++)atr+=trs[i];atr/=period;
+  var histLen=Math.max(trs.length-period,1),histATR=0;
+  for(var i=0;i<Math.min(trs.length-period,50);i++)histATR+=trs[i];
+  histATR/=Math.min(histLen,50)||1;
+  return{current:atr,avg:histATR||atr};
+}
+function calcTrendConsistency(closes,period){
+  if(closes.length<period+1)return{consistency:0.5,sig:0.5};
+  var ups=0;for(var i=closes.length-period;i<closes.length;i++){if(closes[i]>closes[i-1])ups++}
+  var ratio=ups/period;
+  return{consistency:ratio,sig:clamp(ratio,0.15,0.85)};
+}
+function calcSupportResistance(closes,highs,lows){
+  if(closes.length<30)return{support:0,resistance:0,position:0.5,sig:0.5};
+  var price=closes[closes.length-1];
+  var low20=Infinity,high20=-Infinity;
+  for(var i=lows.length-20;i<lows.length;i++){if(lows[i]<low20)low20=lows[i];if(highs[i]>high20)high20=highs[i]}
+  var range=high20-low20||1;
+  var pos=(price-low20)/range;
+  return{support:low20,resistance:high20,position:pos,sig:clamp(0.7-pos*0.4,0.2,0.8)};
+}
+
+/* ════════════════════════════════════
+   DATA PROVIDERS
+   ════════════════════════════════════ */
+/* ─── Provider: Alpha Vantage ─── */
+async function fetchAlphaVantage(ticker){
+  var key=STATE.apiKeys.av;if(!key)return null;
+  var symbol=ticker;
+  if(ticker.endsWith('.HK'))symbol=ticker.replace('.HK','.HKG');
+  var url='https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol='+encodeURIComponent(symbol)+'&apikey='+key+'&outputsize=compact';
+  var resp=await fetch(url);var json=await resp.json();
+  if(json['Error Message']||json['Note']||json['Information'])throw new Error(json['Note']||json['Error Message']||json['Information']||'Unknown AV error');
+  var ts=json['Time Series (Daily)'];if(!ts)throw new Error('No time series data');
+  var dates=Object.keys(ts).sort();
+  var data={dates:[],opens:[],highs:[],lows:[],closes:[],volumes:[]};
+  for(var i=0;i<dates.length;i++){
+    var d=dates[i],row=ts[d];
+    data.dates.push(d);data.opens.push(+row['1. open']);data.highs.push(+row['2. high']);
+    data.lows.push(+row['3. low']);data.closes.push(+row['4. close']);data.volumes.push(+row['5. volume']);
+  }
+  return data;
+}
+
+/* ─── Provider: Twelve Data ─── */
+async function fetchTwelveData(ticker){
+  var key=STATE.apiKeys.td;if(!key)return null;
+  var symbol=ticker;
+  var url='https://api.twelvedata.com/time_series?symbol='+encodeURIComponent(symbol)+'&interval=1day&outputsize=80&apikey='+key;
+  var resp=await fetch(url);var json=await resp.json();
+  if(json.code&&json.code!==200)throw new Error(json.message||'TwelveData error '+json.code);
+  if(json.status==='error')throw new Error(json.message||'TwelveData error');
+  var vals=json.values;if(!vals||!vals.length)throw new Error('No data returned');
+  var data={dates:[],opens:[],highs:[],lows:[],closes:[],volumes:[]};
+  // TwelveData returns newest first, reverse to oldest first
+  for(var i=vals.length-1;i>=0;i--){
+    var r=vals[i];
+    data.dates.push(r.datetime);data.opens.push(+r.open);data.highs.push(+r.high);
+    data.lows.push(+r.low);data.closes.push(+r.close);data.volumes.push(+(r.volume||0));
+  }
+  return data;
+}
+
+/* ─── Provider: Finnhub ─── */
+async function fetchFinnhub(ticker){
+  var key=STATE.apiKeys.fh;if(!key)return null;
+  // Finnhub only supports US stocks well
+  if(ticker.indexOf('.')>=0)throw new Error('Finnhub: non-US tickers not supported');
+  var to=Math.floor(Date.now()/1000);
+  var from=to-86400*120; // ~120 days
+  var url='https://finnhub.io/api/v1/stock/candle?symbol='+encodeURIComponent(ticker)+'&resolution=D&from='+from+'&to='+to+'&token='+key;
+  var resp=await fetch(url);var json=await resp.json();
+  if(json.s==='no_data'||!json.c||!json.c.length)throw new Error('No candle data');
+  var data={dates:[],opens:[],highs:[],lows:[],closes:[],volumes:[]};
+  for(var i=0;i<json.c.length;i++){
+    data.dates.push(new Date(json.t[i]*1000).toISOString().slice(0,10));
+    data.opens.push(json.o[i]);data.highs.push(json.h[i]);
+    data.lows.push(json.l[i]);data.closes.push(json.c[i]);data.volumes.push(json.v[i]||0);
+  }
+  return data;
+}
+
+/* ─── Provider: Financial Modeling Prep ─── */
+async function fetchFMP(ticker){
+  var key=STATE.apiKeys.fmp;if(!key)return null;
+  var symbol=ticker;
+  var url='https://financialmodelingprep.com/api/v3/historical-price-full/'+encodeURIComponent(symbol)+'?timeseries=100&apikey='+key;
+  var resp=await fetch(url);var json=await resp.json();
+  if(!json.historical||!json.historical.length)throw new Error('No FMP historical data');
+  var hist=json.historical;
+  var data={dates:[],opens:[],highs:[],lows:[],closes:[],volumes:[]};
+  // FMP returns newest first, reverse
+  for(var i=hist.length-1;i>=0;i--){
+    var r=hist[i];
+    data.dates.push(r.date);data.opens.push(r.open);data.highs.push(r.high);
+    data.lows.push(r.low);data.closes.push(r.close);data.volumes.push(r.volume||0);
+  }
+  return data;
+}
+
+/* ─── Provider: CoinGecko (crypto, no key) ─── */
+async function fetchCoinGecko(ticker){
+  var id=COINGECKO_IDS[ticker.toUpperCase()];if(!id)return null;
+  var url='https://api.coingecko.com/api/v3/coins/'+id+'/ohlc?vs_currency=usd&days=90';
+  var resp=await fetch(url);var arr=await resp.json();
+  if(!Array.isArray(arr)||arr.length<20)throw new Error('CoinGecko: insufficient data');
+  var data={dates:[],opens:[],highs:[],lows:[],closes:[],volumes:[]};
+  for(var i=0;i<arr.length;i++){
+    var r=arr[i];
+    data.dates.push(new Date(r[0]).toISOString().slice(0,10));
+    data.opens.push(r[1]);data.highs.push(r[2]);data.lows.push(r[3]);data.closes.push(r[4]);
+    data.volumes.push(0);
+  }
+  return data;
+}
+
+/* ─── Provider: CoinCap (crypto backup, no key) ─── */
+async function fetchCoinCap(ticker){
+  var ids={BTC:'bitcoin',ETH:'ethereum',SOL:'solana',DOGE:'dogecoin',XRP:'xrp',ADA:'cardano',DOT:'polkadot',AVAX:'avalanche',MATIC:'polygon',LINK:'chainlink',UNI:'uniswap',ATOM:'cosmos'};
+  var id=ids[ticker.toUpperCase()];if(!id)return null;
+  var end=Date.now(),start=end-86400000*90;
+  var url='https://api.coincap.io/v2/assets/'+id+'/history?interval=d1&start='+start+'&end='+end;
+  var resp=await fetch(url);var json=await resp.json();
+  if(!json.data||json.data.length<20)throw new Error('CoinCap: insufficient data');
+  var data={dates:[],opens:[],highs:[],lows:[],closes:[],volumes:[],syntheticHL:true};
+  for(var i=0;i<json.data.length;i++){
+    var r=json.data[i],p=+r.priceUsd;
+    data.dates.push(new Date(r.time).toISOString().slice(0,10));
+    data.opens.push(p);data.highs.push(p);data.lows.push(p);data.closes.push(p);
+    data.volumes.push(0);
+  }
+  return data;
+}
+
+/* ─── Simulated Fallback ─── */
+function generateSimulated(ticker){
+  var info=TICKERS_DB[ticker]||{vol:0.5};
+  var seed=hashStr(ticker+new Date().toISOString().slice(0,10));
+  var pr=function(off){var x=Math.sin(seed+off)*10000;return x-Math.floor(x)};
+  var vol=info.vol||0.5,N=80;
+  var data={dates:[],opens:[],highs:[],lows:[],closes:[],volumes:[]};
+  var price=100+pr(0)*200;
+  for(var i=0;i<N;i++){
+    var d=new Date();d.setDate(d.getDate()-(N-i));
+    var dv=vol*0.02,ret=(pr(i*3+1)-0.48)*dv*2;
+    var open=price,close=price*(1+ret);
+    var high=Math.max(open,close)*(1+pr(i*3+2)*dv*0.5);
+    var low=Math.min(open,close)*(1-pr(i*3+3)*dv*0.5);
+    var volume=(500000+pr(i*5)*2000000)*(1+vol);
+    data.dates.push(d.toISOString().slice(0,10));
+    data.opens.push(open);data.highs.push(high);data.lows.push(low);
+    data.closes.push(close);data.volumes.push(volume);
+    price=close;
+  }
+  return data;
+}
+
+/* ═══════════════════════════════════
+   MULTI-SOURCE FAILOVER ENGINE
+   ═══════════════════════════════════ */
+var PROVIDERS_STOCK = [
+  {id:'av',name:'Alpha Vantage',color:'var(--blue)',fn:fetchAlphaVantage,needsKey:true,keyField:'av'},
+  {id:'td',name:'Twelve Data',color:'var(--purple)',fn:fetchTwelveData,needsKey:true,keyField:'td'},
+  {id:'fh',name:'Finnhub',color:'var(--green)',fn:fetchFinnhub,needsKey:true,keyField:'fh'},
+  {id:'fmp',name:'FMP',color:'var(--amber)',fn:fetchFMP,needsKey:true,keyField:'fmp'},
+];
+var PROVIDERS_CRYPTO = [
+  {id:'cg',name:'CoinGecko',color:'var(--cyan)',fn:fetchCoinGecko,needsKey:false},
+  {id:'cc',name:'CoinCap',color:'var(--cyan)',fn:fetchCoinCap,needsKey:false},
+];
+
+async function fetchWithFailover(ticker,isCrypto){
+  STATE.fetchLog=[];
+  var providers=isCrypto?PROVIDERS_CRYPTO.concat(PROVIDERS_STOCK):PROVIDERS_STOCK.concat(PROVIDERS_CRYPTO);
+
+  // 筛选可用 provider，跳过无 key 的
+  var available=[], skipped=[];
+  for(var i=0;i<providers.length;i++){
+    var p=providers[i];
+    if(p.needsKey&&!STATE.apiKeys[p.keyField]){
+      skipped.push({id:p.id,name:p.name,color:p.color,status:'skip',msg:'未配置 Key',time:0});
+    }else{
+      available.push(p);
+    }
+  }
+
+  // 并发请求所有可用 provider
+  var promises=available.map(function(p){
+    var t0=Date.now();
+    return p.fn(ticker).then(function(result){
+      var elapsed=Date.now()-t0;
+      if(result&&result.closes&&result.closes.length>=20){
+        return{provider:p,data:result,log:{id:p.id,name:p.name,color:p.color,status:'ok',msg:'成功 ('+result.closes.length+'条)',time:elapsed}};
+      }
+      return{provider:p,data:null,log:{id:p.id,name:p.name,color:p.color,status:'fail',msg:'数据不足',time:elapsed}};
+    }).catch(function(e){
+      var elapsed=Date.now()-t0;
+      var msg=e.message||'请求失败';
+      if(msg.length>40)msg=msg.substring(0,40)+'...';
+      return{provider:p,data:null,log:{id:p.id,name:p.name,color:p.color,status:'fail',msg:msg,time:elapsed}};
+    });
+  });
+
+  var results=await Promise.all(promises);
+
+  // 按原 provider 顺序整理日志和结果
+  var allResults=[], primaryResult=null, primarySource='';
+  for(var i=0;i<results.length;i++){
+    STATE.fetchLog.push(results[i].log);
+    if(results[i].data){
+      allResults.push({provider:results[i].provider,data:results[i].data});
+      if(!primaryResult){primaryResult=results[i].data;primarySource=results[i].provider.name+' (实时)'}
+    }
+  }
+  // 追加跳过的
+  for(var i=0;i<skipped.length;i++) STATE.fetchLog.push(skipped[i]);
+
+  // Cross-validation if multiple results
+  var crossVal=null;
+  if(allResults.length>=2){
+    var c1=allResults[0].data.closes,c2=allResults[1].data.closes;
+    var p1=c1[c1.length-1],p2=c2[c2.length-1];
+    var diff=Math.abs(p1-p2)/Math.max(p1,p2)*100;
+    crossVal={
+      src1:allResults[0].provider.name,price1:p1,
+      src2:allResults[1].provider.name,price2:p2,
+      diff:diff,
+      consistent:diff<2
+    };
+  }
+
+  // Fallback to simulation
+  if(!primaryResult){
+    primaryResult=generateSimulated(ticker);
+    primarySource='模拟引擎';
+    STATE.fetchLog.push({id:'sim',name:'模拟引擎',color:'var(--text3)',status:'ok',msg:'兜底启用',time:0});
+  }
+
+  return{data:primaryResult,source:primarySource,crossVal:crossVal,allResults:allResults};
+}
+
+/* ════════════════════════════════════
+   I CHING (周易)
+   ════════════════════════════════════ */
+var TRIGRAMS=[
+  {name:'乾',sym:'\u2630',nat:'天',elem:'金',yang:3,market:.85,desc:'刚健进取，大势向上'},
+  {name:'兑',sym:'\u2631',nat:'泽',elem:'金',yang:2,market:.55,desc:'喜悦收获，获利兑现'},
+  {name:'离',sym:'\u2632',nat:'火',elem:'火',yang:2,market:.52,desc:'光明照耀，短期波动'},
+  {name:'震',sym:'\u2633',nat:'雷',elem:'木',yang:1,market:.60,desc:'雷动奋起，突发行情'},
+  {name:'巽',sym:'\u2634',nat:'风',elem:'木',yang:2,market:.56,desc:'和风渐入，缓慢渗透'},
+  {name:'坎',sym:'\u2635',nat:'水',elem:'水',yang:1,market:.30,desc:'险中有机，暗藏风险'},
+  {name:'艮',sym:'\u2636',nat:'山',elem:'土',yang:1,market:.42,desc:'止步蓄势，等待时机'},
+  {name:'坤',sym:'\u2637',nat:'地',elem:'土',yang:0,market:.38,desc:'厚德载物，蛰伏蓄力'},
+];
+var HEX_NAMES=[
+  '乾为天','天泽履','天火同人','天雷无妄','天风姤','天水讼','天山遁','天地否',
+  '泽天夬','兑为泽','泽火革','泽雷随','泽风大过','泽水困','泽山咸','泽地萃',
+  '火天大有','火泽睽','离为火','火雷噬嗑','火风鼎','火水未济','火山旅','火地晋',
+  '雷天大壮','雷泽归妹','雷火丰','震为雷','雷风恒','雷水解','雷山小过','雷地豫',
+  '风天小畜','风泽中孚','风火家人','风雷益','巽为风','风水涣','风山渐','风地观',
+  '水天需','水泽节','水火既济','水雷屯','水风井','坎为水','水山蹇','水地比',
+  '山天大畜','山泽损','山火贲','山雷颐','山风蛊','山水蒙','艮为山','山地剥',
+  '地天泰','地泽临','地火明夷','地雷复','地风升','地水师','地山谦','坤为地',
+];
+function getHexagram(ticker,date){
+  var h=hashStr(ticker+date+'yijing');
+  var upper=Math.abs(h)%8,lower=Math.abs(hashStr(ticker+date+'lower'))%8;
+  var idx=upper*8+lower;
+  var up=TRIGRAMS[upper],lo=TRIGRAMS[lower];
+  var name=HEX_NAMES[idx]||up.name+lo.name;
+  var avgMarket=(up.market+lo.market)/2;
+  var harmony=1-Math.abs(up.yang-lo.yang)/3;
+  var score=avgMarket*0.7+harmony*0.3;
+  var bias=score>0.58?'positive':score<0.42?'negative':'neutral';
+  var upDesc='上卦'+up.name+'('+up.sym+' '+up.nat+')：'+up.desc;
+  var loDesc='下卦'+lo.name+'('+lo.sym+' '+lo.nat+')：'+lo.desc;
+  var verdict;
+  if(bias==='positive')verdict=up.nat+lo.nat+'相合，卦象主动向上，利于进取。';
+  else if(bias==='negative')verdict=up.nat+lo.nat+'相克，卦象主阻滞，宜守不宜攻。';
+  else verdict=up.nat+lo.nat+'平和，局势尚不明朗，静观其变为宜。';
+  return{upper:up,lower:lo,name:name,idx:idx+1,score:score,bias:bias,
+    interp:{upDesc:upDesc,loDesc:loDesc,verdict:verdict},symbol:up.sym+'\n'+lo.sym};
+}
+
+/* ════════════════════════════════════
+   TAROT
+   ════════════════════════════════════ */
+var TAROT_CARDS=[
+  {n:0,name:'愚者 The Fool',up:{m:'新起点，大胆尝试',s:.62},rev:{m:'鲁莽冒进，缺乏准备',s:.32}},
+  {n:1,name:'魔术师 The Magician',up:{m:'掌控局势，技巧致胜',s:.72},rev:{m:'操纵欺骗，虚假繁荣',s:.28}},
+  {n:2,name:'女祭司 High Priestess',up:{m:'直觉敏锐，隐藏信息待揭',s:.55},rev:{m:'信息不透明，被蒙蔽',s:.38}},
+  {n:3,name:'女皇 The Empress',up:{m:'丰饶增长，利好不断',s:.75},rev:{m:'过度扩张，增长放缓',s:.35}},
+  {n:4,name:'皇帝 The Emperor',up:{m:'稳定掌权，秩序井然',s:.68},rev:{m:'刚愎自用，控制过度',s:.30}},
+  {n:5,name:'教皇 The Hierophant',up:{m:'遵循传统，稳健前行',s:.60},rev:{m:'打破常规，不确定性增加',s:.42}},
+  {n:6,name:'恋人 The Lovers',up:{m:'重要选择，和谐合作',s:.64},rev:{m:'决策失误，合作破裂',s:.33}},
+  {n:7,name:'战车 The Chariot',up:{m:'强势推进，势不可挡',s:.78},rev:{m:'方向失控，动力不足',s:.25}},
+  {n:8,name:'力量 Strength',up:{m:'内在力量，耐心坚持',s:.65},rev:{m:'信心不足，力不从心',s:.36}},
+  {n:9,name:'隐者 The Hermit',up:{m:'深度研究，等待时机',s:.50},rev:{m:'过度孤立，错失良机',s:.40}},
+  {n:10,name:'命运之轮 Wheel',up:{m:'转运向好，周期转换',s:.70},rev:{m:'运势下行，逆境来临',s:.25}},
+  {n:11,name:'正义 Justice',up:{m:'公平回报，均衡调整',s:.55},rev:{m:'不公判决，意外裁决',s:.38}},
+  {n:12,name:'倒吊人 Hanged Man',up:{m:'换角度看，暂时搁置',s:.45},rev:{m:'无谓牺牲，止损出局',s:.30}},
+  {n:13,name:'死神 Death',up:{m:'旧局终结，新生将至',s:.52},rev:{m:'抗拒改变，僵局持续',s:.35}},
+  {n:14,name:'节制 Temperance',up:{m:'平衡配置，稳步调整',s:.58},rev:{m:'失衡过激，仓位不当',s:.37}},
+  {n:15,name:'恶魔 The Devil',up:{m:'贪婪陷阱，短期诱惑',s:.35},rev:{m:'摆脱束缚，止损解脱',s:.55}},
+  {n:16,name:'塔 The Tower',up:{m:'剧变崩塌，黑天鹅事件',s:.15},rev:{m:'灾难可控，最坏已过',s:.52}},
+  {n:17,name:'星星 The Star',up:{m:'希望之光，长期向好',s:.73},rev:{m:'希望渺茫，信心动摇',s:.32}},
+  {n:18,name:'月亮 The Moon',up:{m:'迷雾重重，谨防幻觉',s:.38},rev:{m:'真相渐明，恐惧消散',s:.58}},
+  {n:19,name:'太阳 The Sun',up:{m:'光明普照，强势看涨',s:.82},rev:{m:'乐极生悲，过热调整',s:.42}},
+  {n:20,name:'审判 Judgement',up:{m:'重大转折，价值重估',s:.65},rev:{m:'犹豫不决，错过时机',s:.38}},
+  {n:21,name:'世界 The World',up:{m:'大功告成，圆满收获',s:.80},rev:{m:'尚未完成，还差一步',s:.45}},
+];
+var TAROT_NUMS=['0','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX','XXI'];
+
+function drawTarot(ticker,date){
+  var h1=hashStr(ticker+date+'tarot1'),h2=hashStr(ticker+date+'tarot2'),h3=hashStr(ticker+date+'tarot3');
+  var pick=function(hash,excl){var idx=Math.abs(hash)%22;while(excl.indexOf(idx)>=0)idx=(idx+1)%22;return idx};
+  var i1=pick(h1,[]),i2=pick(h2,[i1]),i3=pick(h3,[i1,i2]);
+  var isRev=function(h){return(Math.abs(h)%100)<40};
+  var cards=[
+    {pos:'现状',card:TAROT_CARDS[i1],reversed:isRev(h1+7)},
+    {pos:'挑战',card:TAROT_CARDS[i2],reversed:isRev(h2+13)},
+    {pos:'结果',card:TAROT_CARDS[i3],reversed:isRev(h3+19)},
+  ];
+  var scores=cards.map(function(c){return c.reversed?c.card.rev.s:c.card.up.s});
+  var avg=scores[0]*0.25+scores[1]*0.25+scores[2]*0.5;
+  var bias=avg>0.58?'positive':avg<0.42?'negative':'neutral';
+  return{cards:cards,score:avg,bias:bias};
+}
+
+/* ════════════════════════════════════
+   SIGNAL COMPUTATION
+   ════════════════════════════════════ */
+function computeSignals(ohlcv,ticker,period){
+  var closes=ohlcv.closes,highs=ohlcv.highs,lows=ohlcv.lows,volumes=ohlcv.volumes;
+  var synthetic=!!ohlcv.syntheticHL; // CoinCap等源无真实high/low
+  var macd=calcMACD(closes),maCross=calcMACross(closes),vol=calcVolume(volumes,closes);
+  var marketUp=0.4*macd.sig+0.3*maCross.sig+0.3*vol.sig;
+  var rsi=calcRSI(closes),boll=calcBollinger(closes),mom=calcMomentum(closes,period);
+  // 如果high/low是合成的，布林带信号降权，动量信号增权
+  var bollW=synthetic?0.15:0.3, momW=synthetic?0.45:0.3;
+  var modelUp=0.4*rsi.signal+bollW*boll.sig+momW*mom.sig;
+  var trend=calcTrendConsistency(closes,period),atr=calcATR(highs,lows,closes);
+  var sr=calcSupportResistance(closes,highs,lows);
+  var volRatio=atr.avg>0?atr.current/atr.avg:1;
+  // 合成数据下ATR不可靠，波动率信号设为中性
+  var volSig=synthetic?0.5:(volRatio>1.5?0.35:volRatio<0.7?0.62:0.5);
+  var srW=synthetic?0.15:0.3, trendW=synthetic?0.425:0.35, volSigW=synthetic?0.425:0.35;
+  var aiUp=trendW*trend.sig+volSigW*clamp(volSig,0.15,0.85)+srW*sr.sig;
+  var aiConf=1-Math.max(Math.abs(trend.sig-volSig),Math.abs(volSig-sr.sig),Math.abs(trend.sig-sr.sig));
+  var today=new Date().toISOString().slice(0,10);
+  var hexagram=getHexagram(ticker,today),tarot=drawTarot(ticker,today);
+  var ms,mb;
+  if(STATE.mysticType==='iching'){ms=hexagram.score;mb=hexagram.bias}
+  else if(STATE.mysticType==='tarot'){ms=tarot.score;mb=tarot.bias}
+  else{ms=(hexagram.score+tarot.score)/2;mb=ms>0.58?'positive':ms<0.42?'negative':'neutral'}
+  return{
+    market:{up_prob:clamp(marketUp,0.1,0.9),macd:macd,maCross:maCross,vol:vol},
+    model:{up_prob:clamp(modelUp,0.1,0.9),rsi:rsi,boll:boll,mom:mom},
+    ai:{up_prob:clamp(aiUp,0.1,0.9),confidence:clamp(aiConf,0.2,0.9),trend:trend,atr:atr,sr:sr,volRatio:volRatio},
+    mystic:{score:ms,bias:mb},hexagram:hexagram,tarot:tarot
+  };
+}
+
+/* ════════════════════════════════════
+   FUSION
+   ════════════════════════════════════ */
+function fuse(signals){
+  var w=STATE.weights;
+  var total=w.market+w.model+w.ai+w.mystic;
+  var wm=w.market/total,wmo=w.model/total,wa=w.ai/total,wmy=w.mystic/total;
+  var base=wm*signals.market.up_prob+wmo*signals.model.up_prob+wa*signals.ai.up_prob;
+  var aiAdj=(signals.ai.up_prob-0.5)*0.1*signals.ai.confidence;
+  // 玄学信号直接用权重控制：wmy已经是归一化权重（通常0.05），无需再乘0.08
+  var mysticNudge=(signals.mystic.score-0.5)*wmy;
+  var final_p=clamp(base+aiAdj+mysticNudge,0.08,0.92);
+  var biasScore=final_p-0.5;
+  var bias=biasScore>0.1?'bullish':biasScore<-0.1?'bearish':'neutral';
+  var probs=[signals.market.up_prob,signals.model.up_prob,signals.ai.up_prob];
+  var disagreement=Math.max.apply(null,probs)-Math.min.apply(null,probs);
+  var dataComp=signals.ai.atr.current>0?0.9:0.6;
+  var confidence=(1-disagreement)*dataComp;
+  return{up_prob:final_p,down_prob:1-final_p,bias:bias,biasScore:biasScore,
+    disagreement:disagreement,confidence:confidence,dataComp:dataComp,
+    weights:{market:wm,model:wmo,ai:wa,mystic:wmy}};
+}
+
+/* ════════════════════════════════════
+   UI CONTROLS
+   ════════════════════════════════════ */
+function togglePanel(id){$(id).classList.toggle('open')}
+function setMode(m){
+  STATE.mode=m;
+  $('modeStd').className=m==='std'?'active':'';
+  $('modePlus').className=m==='plus'?'active':'';
+  $('plusPanel').className=m==='plus'?'plus-panel open':'plus-panel';
+  document.querySelectorAll('.sig-toggle').forEach(function(el){el.style.display=m==='plus'?'block':'none'});
+  if(STATE.lastData)recalcAndRender();
+}
+function setMystic(t){
+  STATE.mysticType=t;
+  $('mcIching').className=(t==='iching'||t==='both')?'active':'';
+  $('mcTarot').className=(t==='tarot'||t==='both')?'active':'';
+  $('mcBoth').className=t==='both'?'active':'';
+  if(STATE.lastData)recalcAndRender();
+}
+function onWeightChange(){
+  STATE.weights.market=+$('wMarket').value;
+  STATE.weights.model=+$('wModel').value;
+  STATE.weights.ai=+$('wAi').value;
+  STATE.weights.mystic=+$('wMystic').value;
+  var total=STATE.weights.market+STATE.weights.model+STATE.weights.ai+STATE.weights.mystic;
+  $('wMarketVal').textContent=STATE.weights.market+'%';
+  $('wModelVal').textContent=STATE.weights.model+'%';
+  $('wAiVal').textContent=STATE.weights.ai+'%';
+  $('wMysticVal').textContent=STATE.weights.mystic+'%';
+  $('wTotal').textContent=total+'%';
+  $('wTotal').style.color=total===100?'var(--green)':'var(--amber)';
+  if(STATE.lastData)recalcAndRender();
+}
+function onApiKeyChange(){
+  STATE.apiKeys.av=$('avKey').value.trim();
+  STATE.apiKeys.td=$('tdKey').value.trim();
+  STATE.apiKeys.fh=$('fhKey').value.trim();
+  STATE.apiKeys.fmp=$('fmpKey').value.trim();
+  var count=[STATE.apiKeys.av,STATE.apiKeys.td,STATE.apiKeys.fh,STATE.apiKeys.fmp].filter(function(k){return!!k}).length;
+  if(count>0){
+    var msg=count+' \u4E2A\u6570\u636E\u6E90\u5DF2\u914D\u7F6E';
+    if(count>=2)msg+='\uFF0C\u5DF2\u542F\u7528\u6545\u969C\u8F6C\u79FB+\u4EA4\u53C9\u9A8C\u8BC1';
+    else msg+='\uFF0C\u5EFA\u8BAE\u914D\u7F6E 2+ \u4E2A\u4EE5\u542F\u7528\u4EA4\u53C9\u9A8C\u8BC1';
+    $('apiStatus').innerHTML='<div class="status ok">'+msg+'</div>';
+  }else{$('apiStatus').innerHTML=''}
+}
+function toggleDetail(id,btn){
+  var el=$(id),isOpen=el.classList.contains('open');
+  el.classList.toggle('open');
+  btn.innerHTML=isOpen?'查看计算逻辑 &#9660;':'收起 &#9650;';
+}
+function qp(t){$('tickerInput').value=t;doAnalyze()}
+
+/* ════════════════════════════════════
+   RENDER
+   ════════════════════════════════════ */
+function recalcAndRender(){
+  if(!STATE.lastData)return;
+  var d=STATE.lastData,signals=d.signals,ticker=d.ticker;
+  var today=new Date().toISOString().slice(0,10);
+  var hex=getHexagram(ticker,today),tar=drawTarot(ticker,today);
+  var ms,mb;
+  if(STATE.mysticType==='iching'){ms=hex.score;mb=hex.bias}
+  else if(STATE.mysticType==='tarot'){ms=tar.score;mb=tar.bias}
+  else{ms=(hex.score+tar.score)/2;mb=ms>0.58?'positive':ms<0.42?'negative':'neutral'}
+  signals.mystic={score:ms,bias:mb};signals.hexagram=hex;signals.tarot=tar;
+  var fusion=fuse(signals);
+  renderResult(d.ticker,d.info,d.period,d.source,signals,fusion);
+}
+
+function renderResult(ticker,info,period,source,signals,fusion){
+  // 数据降级警告
+  var warn=$('dataWarn');
+  if(source==='模拟引擎'){
+    warn.style.display='block';
+    warn.innerHTML='&#9888;&#65039; <b>数据降级警告</b>：所有真实数据源均不可用，当前使用模拟数据。分析结果仅供参考，不反映真实市场状态。请配置至少一个 API Key 以获取真实数据。';
+  }else if(STATE.lastData&&STATE.lastData.ohlcv&&STATE.lastData.ohlcv.syntheticHL){
+    warn.style.display='block';
+    warn.innerHTML='&#9888;&#65039; <b>数据精度提示</b>：当前数据源缺少真实的最高/最低价，布林带、ATR 等指标精度可能降低。已自动调整权重。';
+  }else{
+    warn.style.display='none';
+  }
+  var market=signals.market,model=signals.model,ai=signals.ai,mystic=signals.mystic;
+  $('topCard').className='top-card '+fusion.bias;
+  $('rTicker').textContent=ticker;
+  $('rName').textContent=info.name+' \u00B7 '+info.sec;
+  $('rSrc').textContent='\u6570\u636E\u6E90: '+source;
+  $('rPeriod').textContent='\u672A\u6765 '+period+' \u4EA4\u6613\u65E5';
+  var biasMap={bullish:'\uD83D\uDCC8 \u770B\u6DA8',bearish:'\uD83D\uDCC9 \u770B\u8DCC',neutral:'\u2696\uFE0F \u4E2D\u6027'};
+  $('rBias').textContent=biasMap[fusion.bias];
+  $('rBias').className='bias-val '+fusion.bias;
+  var upP=(fusion.up_prob*100).toFixed(1),dnP=(fusion.down_prob*100).toFixed(1);
+  $('probUp').style.width=upP+'%';$('probUp').textContent=upP+'%';
+  $('probDown').style.width=dnP+'%';$('probDown').textContent=dnP+'%';
+
+  $('smProb').textContent=pct(market.up_prob);
+  $('smStr').textContent=dirWord(market.up_prob)+' \u00B7 \u4FE1\u53F7'+strengthWord(market.up_prob);
+  $('smBar').style.width=(market.up_prob*100)+'%';
+  $('moProb').textContent=pct(model.up_prob);
+  $('moStr').textContent=dirWord(model.up_prob)+' \u00B7 \u4FE1\u53F7'+strengthWord(model.up_prob);
+  $('moBar').style.width=(model.up_prob*100)+'%';
+  $('aiProb').textContent=pct(ai.up_prob);
+  $('aiStr').textContent=dirWord(ai.up_prob)+' \u00B7 \u7F6E\u4FE1\u5EA6 '+pct(ai.confidence);
+  $('aiBar').style.width=(ai.up_prob*100)+'%';
+
+  var mysticLabels={positive:'\u504F\u6B63 \u2191',negative:'\u504F\u8D1F \u2193',neutral:'\u4E2D\u6027 \u2192'};
+  $('myBias').textContent=mysticLabels[mystic.bias];
+  var mLabel=STATE.mysticType==='iching'?'\u5468\u6613':STATE.mysticType==='tarot'?'\u5854\u7F57':'\u53CC\u7CFB\u7EDF';
+  $('myStr').textContent=mLabel+' \u00B7 \u6743\u91CD '+STATE.weights.mystic+'%';
+  $('myBar').style.width=(mystic.score*100)+'%';
+
+  // Detail panels
+  $('smDetail').innerHTML=
+    '<div class="sd-row"><span class="sd-label">MACD(12,26,9)</span><span class="sd-val" style="color:'+(market.macd.sig>.55?'var(--green)':'var(--red)')+'">'+(market.macd.hist>0?'\u591A\u5934':'\u7A7A\u5934')+' ('+market.macd.hist.toFixed(3)+')</span></div>'+
+    '<div class="sd-row"><span class="sd-label">MA\u4EA4\u53C9(5/20)</span><span class="sd-val" style="color:'+(market.maCross.sig>.55?'var(--green)':'var(--red)')+'">'+(market.maCross.cross==='golden'?'\u2B06\u91D1\u53C9':market.maCross.cross==='death'?'\u2B07\u6B7B\u53C9':market.maCross.sig>.5?'\u591A\u5934\u6392\u5217':'\u7A7A\u5934\u6392\u5217')+'</span></div>'+
+    '<div class="sd-row"><span class="sd-label">\u6210\u4EA4\u91CF\u6BD4</span><span class="sd-val">'+market.vol.ratio.toFixed(2)+'x</span></div>'+
+    '<div class="sd-formula">market_up = 0.4\u00D7MACD('+market.macd.sig.toFixed(2)+') + 0.3\u00D7MA('+market.maCross.sig.toFixed(2)+') + 0.3\u00D7Vol('+market.vol.sig.toFixed(2)+') = '+market.up_prob.toFixed(3)+'</div>';
+
+  $('moDetail').innerHTML=
+    '<div class="sd-row"><span class="sd-label">RSI(14)</span><span class="sd-val" style="color:'+(model.rsi.value<30?'var(--green)':model.rsi.value>70?'var(--red)':'var(--text)')+'">'+model.rsi.value.toFixed(1)+' '+(model.rsi.value<30?'\u8D85\u5356':model.rsi.value>70?'\u8D85\u4E70':'\u4E2D\u6027')+'</span></div>'+
+    '<div class="sd-row"><span class="sd-label">\u5E03\u6797\u5E26 %B</span><span class="sd-val">'+(model.boll.pctB*100).toFixed(1)+'%</span></div>'+
+    '<div class="sd-row"><span class="sd-label">\u52A8\u91CF('+period+'\u65E5)</span><span class="sd-val" style="color:'+(model.mom.roc>0?'var(--green)':'var(--red)')+'">'+(model.mom.roc*100).toFixed(2)+'%</span></div>'+
+    '<div class="sd-formula">model_up = 0.4\u00D7RSI('+model.rsi.signal.toFixed(2)+') + 0.3\u00D7BB('+model.boll.sig.toFixed(2)+') + 0.3\u00D7Mom('+model.mom.sig.toFixed(2)+') = '+model.up_prob.toFixed(3)+'</div>';
+
+  var volSigVal=ai.volRatio>1.5?0.35:ai.volRatio<0.7?0.62:0.5;
+  $('aiDetail').innerHTML=
+    '<div class="sd-row"><span class="sd-label">\u8D8B\u52BF\u4E00\u81F4\u6027</span><span class="sd-val">'+(ai.trend.consistency*100).toFixed(0)+'% \u770B\u6DA8\u5929\u6570</span></div>'+
+    '<div class="sd-row"><span class="sd-label">\u6CE2\u52A8\u7387\u72B6\u6001</span><span class="sd-val">'+(ai.volRatio>1.5?'\u26A1\u9AD8\u6CE2\u52A8':ai.volRatio<0.7?'\uD83D\uDE34\u4F4E\u6CE2\u52A8':'\u6B63\u5E38')+' ('+ai.volRatio.toFixed(2)+'x)</span></div>'+
+    '<div class="sd-row"><span class="sd-label">\u4EF7\u683C\u4F4D\u7F6E</span><span class="sd-val">'+(ai.sr.position*100).toFixed(0)+'% ('+(ai.sr.position<0.3?'\u8FD1\u652F\u6491':ai.sr.position>0.7?'\u8FD1\u963B\u529B':'\u4E2D\u95F4\u533A\u57DF')+')</span></div>'+
+    '<div class="sd-row"><span class="sd-label">\u7EFC\u5408\u7F6E\u4FE1\u5EA6</span><span class="sd-val" style="color:'+(ai.confidence>0.6?'var(--green)':'var(--amber)')+'">'+pct(ai.confidence)+'</span></div>'+
+    '<div class="sd-formula">ai_up = 0.35\u00D7\u8D8B\u52BF('+ai.trend.sig.toFixed(2)+') + 0.35\u00D7\u6CE2\u52A8('+clamp(volSigVal,0.15,0.85).toFixed(2)+') + 0.3\u00D7\u652F\u963B('+ai.sr.sig.toFixed(2)+') = '+ai.up_prob.toFixed(3)+'</div>';
+
+  document.querySelectorAll('.sig-toggle').forEach(function(el){el.style.display=STATE.mode==='plus'?'block':'none'});
+
+  // Quality
+  var disLvl=fusion.disagreement>0.2?'\u9AD8':fusion.disagreement>0.1?'\u4E2D\u7B49':'\u4F4E';
+  var disClr=fusion.disagreement>0.2?'var(--red)':fusion.disagreement>0.1?'var(--amber)':'var(--green)';
+  $('qDis').textContent=disLvl+' ('+(fusion.disagreement*100).toFixed(1)+'%)';$('qDis').style.color=disClr;
+  $('qComp').textContent=pct(fusion.dataComp);$('qComp').style.color=fusion.dataComp>0.8?'var(--green)':'var(--amber)';
+  $('qConf').textContent=pct(fusion.confidence);$('qConf').style.color=fusion.confidence>0.6?'var(--green)':fusion.confidence>0.4?'var(--amber)':'var(--red)';
+  $('qCons').textContent=fusion.disagreement<0.1?'\u5F3A\u5171\u8BC6':fusion.disagreement<0.2?'\u4E00\u822C':'\u5206\u6B67\u5927';
+  $('qCons').style.color=disClr;
+
+  // Mystic card
+  renderMysticCard(signals.hexagram,signals.tarot);
+
+  // AI text
+  renderAIText(fusion,signals);
+
+  // Mini chart
+  if(STATE.lastData&&STATE.lastData.ohlcv) renderMiniChart(STATE.lastData.ohlcv);
+
+  $('result').className='result show';
+}
+
+function renderMiniChart(ohlcv){
+  var canvas=$('priceChart');
+  if(!canvas)return;
+  $('chartCard').style.display='block';
+  var closes=ohlcv.closes, dates=ohlcv.dates;
+  // 取最近30个数据点
+  var n=Math.min(closes.length,30);
+  var data=closes.slice(-n), dateLabels=dates.slice(-n);
+  var last=data[data.length-1], first=data[0];
+  var chg=((last-first)/first*100);
+  var isUp=chg>=0;
+
+  // 显示价格信息
+  $('chartPrice').textContent=last.toFixed(2);
+  $('chartChg').textContent=(isUp?'+':'')+chg.toFixed(2)+'%';
+  $('chartChg').className='ci-chg '+(isUp?'up':'down');
+  $('chartRange').textContent=dateLabels[0]+' → '+dateLabels[dateLabels.length-1];
+
+  // Canvas 绘制
+  var dpr=window.devicePixelRatio||1;
+  var rect=canvas.getBoundingClientRect();
+  canvas.width=rect.width*dpr;
+  canvas.height=160*dpr;
+  canvas.style.height='160px';
+  var ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  var w=rect.width, h=160;
+  ctx.clearRect(0,0,w,h);
+
+  var min=Math.min.apply(null,data), max=Math.max.apply(null,data);
+  var range=max-min||1;
+  var pad=12, pw=w-pad*2, ph=h-pad*2;
+
+  // 渐变填充
+  var grad=ctx.createLinearGradient(0,0,0,h);
+  if(isUp){grad.addColorStop(0,'rgba(0,232,157,0.15)');grad.addColorStop(1,'rgba(0,232,157,0)');}
+  else{grad.addColorStop(0,'rgba(255,68,102,0.15)');grad.addColorStop(1,'rgba(255,68,102,0)');}
+
+  ctx.beginPath();
+  for(var i=0;i<data.length;i++){
+    var x=pad+i/(data.length-1)*pw;
+    var y=pad+ph-(data[i]-min)/range*ph;
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  // 填充区域
+  var pathEnd=ctx.getLinePath?null:null;
+  ctx.strokeStyle=isUp?'#00e89d':'#ff4466';
+  ctx.lineWidth=2;
+  ctx.lineJoin='round';
+  ctx.stroke();
+
+  // 填充
+  ctx.lineTo(pad+(data.length-1)/(data.length-1)*pw, pad+ph);
+  ctx.lineTo(pad, pad+ph);
+  ctx.closePath();
+  ctx.fillStyle=grad;
+  ctx.fill();
+
+  // 最后一个点的圆点
+  var lastX=pad+(data.length-1)/(data.length-1)*pw;
+  var lastY=pad+ph-(data[data.length-1]-min)/range*ph;
+  ctx.beginPath();
+  ctx.arc(lastX,lastY,4,0,Math.PI*2);
+  ctx.fillStyle=isUp?'#00e89d':'#ff4466';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(lastX,lastY,6,0,Math.PI*2);
+  ctx.strokeStyle=isUp?'rgba(0,232,157,0.3)':'rgba(255,68,102,0.3)';
+  ctx.lineWidth=2;
+  ctx.stroke();
+}
+
+function renderMysticCard(hex,tar){
+  var html='';
+  if(STATE.mysticType==='iching'||STATE.mysticType==='both'){
+    html+='<div style="margin-bottom:'+(STATE.mysticType==='both'?'18px':'0')+'">'+
+      '<div style="font-size:.72rem;color:var(--amber);letter-spacing:1px;margin-bottom:8px">\u262F \u5468\u6613\u5366\u8C61</div>'+
+      '<div class="hex-display">'+
+      '<div class="hex-symbol" style="color:var(--amber);line-height:1.2;font-family:serif;font-size:2.2rem">'+hex.symbol+'</div>'+
+      '<div><div class="hex-name">\u7B2C'+hex.idx+'\u5366 \u00B7 '+hex.name+'</div>'+
+      '<div class="hex-desc">'+hex.interp.upDesc+'</div>'+
+      '<div class="hex-desc">'+hex.interp.loDesc+'</div>'+
+      '<div class="hex-desc" style="color:var(--amber);margin-top:4px;font-weight:500">'+hex.interp.verdict+'</div></div></div></div>';
+  }
+  if(STATE.mysticType==='tarot'||STATE.mysticType==='both'){
+    html+='<div><div style="font-size:.72rem;color:var(--amber);letter-spacing:1px;margin-bottom:8px">\uD83C\uDCCF \u5854\u7F57\u724C\u9635 \u00B7 \u4E09\u724C\u9635</div>'+
+      '<div class="tarot-cards">';
+    for(var i=0;i<tar.cards.length;i++){
+      var c=tar.cards[i];
+      html+='<div class="tarot-c"><div class="tc-pos">'+c.pos+'</div>'+
+        '<div class="tc-num">'+TAROT_NUMS[c.card.n]+'</div>'+
+        '<div class="tc-name">'+c.card.name+'</div>'+
+        '<div class="tc-dir '+(c.reversed?'rev':'up')+'">'+(c.reversed?'\u9006\u4F4D \u2193':'\u6B63\u4F4D \u2191')+'</div>'+
+        '<div class="tc-mean">'+(c.reversed?c.card.rev.m:c.card.up.m)+'</div></div>';
+    }
+    html+='</div></div>';
+  }
+  var biasLabels={positive:'\u504F\u6B63\u770B\u6DA8',negative:'\u504F\u8D1F\u770B\u8DCC',neutral:'\u4E2D\u6027\u89C2\u671B'};
+  var clrMap={positive:'var(--green)',negative:'var(--red)',neutral:'var(--amber)'};
+  var mb=STATE.lastData.signals.mystic.bias;
+  html+='<div class="mystic-verdict" style="color:'+clrMap[mb]+'">\u7384\u5B66\u5224\u65AD\uFF1A'+biasLabels[mb]+'\uFF08\u5F31\u4FE1\u53F7\uFF0C\u4EC5\u4F9B\u8DA3\u5473\u53C2\u8003\uFF09</div>';
+  $('mysticBody').innerHTML=html;
+}
+
+function renderAIText(fusion,signals){
+  var market=signals.market,model=signals.model,ai=signals.ai,mystic=signals.mystic;
+  var up=(fusion.up_prob*100).toFixed(0),dn=(fusion.down_prob*100).toFixed(0);
+  var biasT=fusion.bias==='bullish'?'\u504F\u5411\u4E0A\u6DA8':fusion.bias==='bearish'?'\u504F\u5411\u4E0B\u8DCC':'\u65B9\u5411\u4E0D\u660E\u786E';
+  var biasE=fusion.bias==='bullish'?'\uD83D\uDCC8':fusion.bias==='bearish'?'\uD83D\uDCC9':'\u2696\uFE0F';
+  var mS=strengthWord(market.up_prob),moS=strengthWord(model.up_prob),aS=strengthWord(ai.up_prob);
+  var disagT=fusion.disagreement>0.2?'\u8F83\u5927':fusion.disagreement>0.1?'\u4E00\u5B9A':'\u8F83\u5C0F';
+  var confT=fusion.confidence>0.6?'\u8F83\u9AD8':fusion.confidence>0.4?'\u4E2D\u7B49':'\u504F\u4F4E';
+  var mysticT=mystic.bias==='positive'?'\u504F\u6B63':mystic.bias==='negative'?'\u504F\u8D1F':'\u4E2D\u6027';
+  var wt=STATE.weights;
+
+  var text='\u5F53\u524D\u4FE1\u53F7\u6574\u4F53'+biasT+'\uFF08'+biasE+' '+up+'% vs '+dn+'%\uFF09\uFF0C\n'+
+    '\u4E0D\u540C\u6A21\u578B\u4E4B\u95F4\u5B58\u5728'+disagT+'\u5206\u6B67\u3002\n\n'+
+    '\u5E02\u573A\u4FE1\u53F7'+(mS==='\u5F3A'?'\u8F83\u5F3A':'\u4E2D\u7B49\u504F'+mS)+'\uFF08\u6743\u91CD'+wt.market+'%\uFF09\uFF0C\n'+
+    '\u6570\u636E\u6A21\u578B'+(moS==='\u5F3A'?'\u7ED9\u4E88\u8F83\u5F3A\u652F\u6491':moS==='\u4E2D\u7B49'?'\u63D0\u4F9B\u4E00\u5B9A\u652F\u6491':'\u4FE1\u53F7\u8F83\u5F31')+'\uFF08\u6743\u91CD'+wt.model+'%\uFF09\uFF0C\n'+
+    'AI\u8BA4\u77E5\u5C42'+(aS==='\u5F3A'?'\u65B9\u5411\u8F83\u4E3A\u660E\u786E':aS==='\u4E2D\u7B49'?'\u6709\u4E00\u5B9A\u503E\u5411':'\u5224\u65AD\u5C1A\u4E0D\u660E\u6717')+'\uFF08\u7F6E\u4FE1\u5EA6'+(ai.confidence*100).toFixed(0)+'%\uFF0C\u6743\u91CD'+wt.ai+'%\uFF09\u3002\n\n'+
+    '\u7384\u5B66\u4FE1\u53F7'+mysticT+'\uFF08\u6743\u91CD'+wt.mystic+'%\uFF0C\u5F31\u4FE1\u53F7\uFF09\u3002\n'+
+    '\u7EFC\u5408\u7F6E\u4FE1\u5EA6\uFF1A'+confT+'\uFF08'+(fusion.confidence*100).toFixed(0)+'%\uFF09\u3002';
+  $('aiText').textContent=text;
+
+  var conclusion;
+  if(fusion.bias==='bullish'&&fusion.confidence>0.55)conclusion='\u2192 \u591A\u5934\u4FE1\u53F7\u5360\u4F18\uFF0C\u53EF\u8003\u8651\u9002\u5F53\u5E03\u5C40';
+  else if(fusion.bias==='bullish')conclusion='\u2192 \u504F\u591A\u4F46\u7F6E\u4FE1\u5EA6\u6709\u9650\uFF0C\u66F4\u9002\u5408\u8F7B\u4ED3\u8BD5\u63A2';
+  else if(fusion.bias==='bearish'&&fusion.confidence>0.55)conclusion='\u2192 \u7A7A\u5934\u4FE1\u53F7\u660E\u663E\uFF0C\u5EFA\u8BAE\u4FDD\u6301\u8C28\u614E\u6216\u51CF\u4ED3';
+  else if(fusion.bias==='bearish')conclusion='\u2192 \u504F\u7A7A\u4F46\u4FE1\u53F7\u4E0D\u5145\u5206\uFF0C\u5EFA\u8BAE\u89C2\u671B\u4E3A\u4E3B';
+  else conclusion='\u2192 \u591A\u7A7A\u4EA4\u7EC7\uFF0C\u5EFA\u8BAE\u89C2\u671B\u7B49\u5F85\u65B9\u5411\u660E\u786E';
+  $('aiAct').textContent=conclusion;
+  $('aiAct').className='ai-action '+fusion.bias;
+}
+
+/* ════════════════════════════════════
+   MAIN ANALYZE
+   ════════════════════════════════════ */
+async function doAnalyze(){
+  var ticker=$('tickerInput').value.trim().toUpperCase();
+  if(!ticker){$('tickerInput').focus();return}
+  var period=+$('periodSel').value;
+  $('btnGo').disabled=true;
+  $('result').className='result';
+  $('loading').className='loading active';
+
+  // Fetch with failover (并发)
+  $('ldText').textContent='多源数据获取中...';$('ldStep').textContent='';
+  var isCrypto=CRYPTO_LIST.indexOf(ticker)>=0;
+  var fetchResult=await fetchWithFailover(ticker,isCrypto);
+  var ohlcv=fetchResult.data,source=fetchResult.source;
+
+  var info=TICKERS_DB[ticker]||{name:ticker,sec:'\u672A\u77E5',vol:0.5};
+  var signals=computeSignals(ohlcv,ticker,period);
+  STATE.lastData={signals:signals,ticker:ticker,info:info,period:period,source:source,crossVal:fetchResult.crossVal,ohlcv:ohlcv};
+  var fusion=fuse(signals);
+  renderResult(ticker,info,period,source,signals,fusion);
+  renderDataSourceDashboard(fetchResult.crossVal);
+
+  STATE.history.unshift({ticker:ticker,bias:fusion.bias,upProb:fusion.up_prob,source:source,
+    time:new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})});
+  if(STATE.history.length>20)STATE.history.pop();
+  renderHistory();
+  saveHistory();
+  $('loading').className='loading';
+  $('btnGo').disabled=false;
+}
+
+function renderDataSourceDashboard(crossVal){
+  var dashboard=$('dsDashboard');
+  if(!STATE.fetchLog.length){dashboard.style.display='none';return}
+  dashboard.style.display='block';
+  var chain=$('dsChain');
+  var html='';
+  var foundPrimary=false;
+  for(var i=0;i<STATE.fetchLog.length;i++){
+    var log=STATE.fetchLog[i];
+    var isPrimary=!foundPrimary&&log.status==='ok';
+    if(isPrimary)foundPrimary=true;
+    html+='<div class="ds-item'+(isPrimary?' active':'')+'">'+
+      '<div class="ds-dot '+log.status+'"></div>'+
+      '<div class="ds-name" style="color:'+log.color+'">'+log.name+(isPrimary?' \u2713':'')+'</div>'+
+      '<div class="ds-status">'+log.msg+'</div>'+
+      '<div class="ds-time">'+(log.time>0?log.time+'ms':'—')+'</div></div>';
+  }
+  chain.innerHTML=html;
+
+  // Cross-validation
+  var cvDiv=$('dsCrossval');
+  if(crossVal){
+    cvDiv.style.display='block';
+    var icon=crossVal.consistent?'\u2705':'\u26A0\uFE0F';
+    var color=crossVal.consistent?'var(--green)':'var(--amber)';
+    $('cvContent').innerHTML=icon+' <b>'+crossVal.src1+'</b> \u6700\u65B0\u4EF7: '+crossVal.price1.toFixed(2)+
+      ' vs <b>'+crossVal.src2+'</b>: '+crossVal.price2.toFixed(2)+
+      ' \u2014 \u504F\u5DEE <span style="color:'+color+';font-weight:700">'+crossVal.diff.toFixed(2)+'%</span>'+
+      (crossVal.consistent?' (\u6570\u636E\u4E00\u81F4)':' (\u6570\u636E\u6709\u504F\u5DEE\uFF0C\u4EE5\u4E3B\u6E90\u4E3A\u51C6)');
+  }else{
+    cvDiv.style.display='none';
+  }
+}
+
+function renderHistory(){
+  var sec=$('histSec'),list=$('histList');
+  if(!STATE.history.length){sec.className='hist-sec';return}
+  sec.className='hist-sec show';
+  var bm={bullish:'\u770B\u6DA8',bearish:'\u770B\u8DCC',neutral:'\u4E2D\u6027'};
+  var cm={bullish:'var(--green)',bearish:'var(--red)',neutral:'var(--amber)'};
+  var html='';
+  for(var i=0;i<STATE.history.length;i++){
+    var h=STATE.history[i];
+    html+='<div class="hist-item" onclick="$(\'tickerInput\').value=\''+h.ticker+'\';doAnalyze()">'+
+      '<span class="hi-tk">'+h.ticker+'</span>'+
+      '<span class="hi-bias" style="color:'+cm[h.bias]+'">'+bm[h.bias]+'</span>'+
+      '<span class="hi-prob">\u2191 '+(h.upProb*100).toFixed(1)+'%</span>'+
+      '<span class="hi-src">'+(h.source.indexOf('\u5B9E\u65F6')>=0?'\uD83D\uDFE2':'\uD83D\uDFE1')+'</span>'+
+      '<span class="hi-time">'+h.time+'</span></div>';
+  }
+  list.innerHTML=html;
+}
+
+// ════════════════════════════════════
+// PERSISTENCE (localStorage)
+// ════════════════════════════════════
+function saveApiKeys(){
+  try{localStorage.setItem('bias_engine_keys',JSON.stringify(STATE.apiKeys))}catch(e){}
+}
+function loadApiKeys(){
+  try{
+    var saved=localStorage.getItem('bias_engine_keys');
+    if(saved){
+      var keys=JSON.parse(saved);
+      STATE.apiKeys.av=keys.av||'';STATE.apiKeys.td=keys.td||'';
+      STATE.apiKeys.fh=keys.fh||'';STATE.apiKeys.fmp=keys.fmp||'';
+      $('avKey').value=STATE.apiKeys.av;$('tdKey').value=STATE.apiKeys.td;
+      $('fhKey').value=STATE.apiKeys.fh;$('fmpKey').value=STATE.apiKeys.fmp;
+      onApiKeyChange();
+    }
+  }catch(e){}
+}
+function saveHistory(){
+  try{localStorage.setItem('bias_engine_history',JSON.stringify(STATE.history.slice(0,20)))}catch(e){}
+}
+function loadHistory(){
+  try{
+    var saved=localStorage.getItem('bias_engine_history');
+    if(saved){STATE.history=JSON.parse(saved);renderHistory()}
+  }catch(e){}
+}
+
+// Patch onApiKeyChange to also persist
+var _origApiKeyChange=onApiKeyChange;
+onApiKeyChange=function(){_origApiKeyChange();saveApiKeys()};
+
+// Init
+loadApiKeys();
+loadHistory();
+$('tickerInput').addEventListener('keydown',function(e){if(e.key==='Enter')doAnalyze()});
+</script>
+</body>
+</html>
