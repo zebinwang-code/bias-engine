@@ -529,7 +529,7 @@ function hashStr(s){var h=0;for(var i=0;i<s.length;i++)h=((h<<5)-h+s.charCodeAt(
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
 function $(id){return document.getElementById(id)}
 function strengthWord(p){var d=Math.abs(p-0.5);return d>0.15?'强':d>0.08?'中等':'弱'}
-function dirWord(p){return p>=0.55?'偏多':p<=0.45?'偏空':'中性'}
+function dirWord(p){return p>=0.55?'偏多':p>=0.52?'微多':p<=0.45?'偏空':p<=0.48?'微空':'中性'}
 
 /* ════════════════════════════════════
    TECHNICAL ANALYSIS
@@ -1016,7 +1016,7 @@ function fuse(signals){
   var mysticNudge=(signals.mystic.score-0.5)*wmy;
   var final_p=clamp(base+aiAdj+mysticNudge,0.08,0.92);
   var biasScore=final_p-0.5;
-  var bias=biasScore>0.1?'bullish':biasScore<-0.1?'bearish':'neutral';
+  var bias=biasScore>0.04?'bullish':biasScore<-0.04?'bearish':'neutral';
   var probs=[signals.market.up_prob,signals.model.up_prob,signals.ai.up_prob];
   var disagreement=Math.max.apply(null,probs)-Math.min.apply(null,probs);
   var dataComp=signals.ai.atr.current>0?0.9:0.6;
@@ -1310,9 +1310,9 @@ function renderAIText(fusion,signals){
     '</div>';
 
   // ── Signal badges ──
-  function sigClass(p){return p>0.55?'bullish':p<0.45?'bearish':'neutral'}
-  function tagClass(p){return p>0.55?'up':p<0.45?'down':'flat'}
-  function tagText(p){return p>0.55?'偏多':p<0.45?'偏空':'中性'}
+  function sigClass(p){return p>0.52?'bullish':p<0.48?'bearish':'neutral'}
+  function tagClass(p){return p>0.52?'up':p<0.48?'down':'flat'}
+  function tagText(p){return p>0.55?'偏多':p>0.52?'微多':p<0.45?'偏空':p<0.48?'微空':'中性'}
 
   var sigData=[
     {icon:'&#128202;',name:'市场信号',val:market.up_prob,weight:wt.market,
@@ -1344,24 +1344,46 @@ function renderAIText(fusion,signals){
 
   // ── Key factors (亮点/风险标签) ──
   var factors=[];
-  if(market.macd.hist>0&&market.macd.hist>0) factors.push({t:'MACD 多头',c:'pos'});
-  else if(market.macd.hist<0) factors.push({t:'MACD 空头',c:'neg'});
+  // MACD
+  if(market.macd.hist>0) factors.push({t:'MACD 多头',c:'pos'});
+  else factors.push({t:'MACD 空头',c:'neg'});
+  // MA 排列
   if(market.maCross.cross==='golden') factors.push({t:'MA 金叉',c:'pos'});
-  if(market.maCross.cross==='death') factors.push({t:'MA 死叉',c:'neg'});
+  else if(market.maCross.cross==='death') factors.push({t:'MA 死叉',c:'neg'});
+  else if(market.maCross.sig>0.55) factors.push({t:'MA 多头排列',c:'pos'});
+  else if(market.maCross.sig<0.45) factors.push({t:'MA 空头排列',c:'neg'});
+  // 成交量
   if(market.vol.ratio>1.3&&market.vol.priceDir>0) factors.push({t:'放量上涨',c:'pos'});
-  if(market.vol.ratio>1.3&&market.vol.priceDir<0) factors.push({t:'放量下跌',c:'neg'});
-  if(market.vol.ratio<0.6) factors.push({t:'缩量观望',c:'neu'});
+  else if(market.vol.ratio>1.3&&market.vol.priceDir<0) factors.push({t:'放量下跌',c:'neg'});
+  else if(market.vol.ratio<0.6) factors.push({t:'缩量观望',c:'neu'});
+  // RSI
   if(model.rsi.value<30) factors.push({t:'RSI 超卖',c:'pos'});
-  if(model.rsi.value>70) factors.push({t:'RSI 超买',c:'neg'});
+  else if(model.rsi.value<40) factors.push({t:'RSI 偏低 '+model.rsi.value.toFixed(0),c:'pos'});
+  else if(model.rsi.value>70) factors.push({t:'RSI 超买',c:'neg'});
+  else if(model.rsi.value>60) factors.push({t:'RSI 偏高 '+model.rsi.value.toFixed(0),c:'neg'});
+  else factors.push({t:'RSI 中性 '+model.rsi.value.toFixed(0),c:'neu'});
+  // 布林带
   if(model.boll.pctB<0.15) factors.push({t:'触及布林下轨',c:'pos'});
-  if(model.boll.pctB>0.85) factors.push({t:'触及布林上轨',c:'neg'});
+  else if(model.boll.pctB<0.35) factors.push({t:'布林带偏低位',c:'pos'});
+  else if(model.boll.pctB>0.85) factors.push({t:'触及布林上轨',c:'neg'});
+  else if(model.boll.pctB>0.65) factors.push({t:'布林带偏高位',c:'neg'});
+  // 动量
+  if(model.mom.roc>0.03) factors.push({t:'强势动量 +'+(model.mom.roc*100).toFixed(1)+'%',c:'pos'});
+  else if(model.mom.roc>0.01) factors.push({t:'正向动量',c:'pos'});
+  else if(model.mom.roc<-0.03) factors.push({t:'弱势动量 '+(model.mom.roc*100).toFixed(1)+'%',c:'neg'});
+  else if(model.mom.roc<-0.01) factors.push({t:'负向动量',c:'neg'});
+  // 支撑阻力
   if(ai.sr.position<0.25) factors.push({t:'接近支撑位',c:'pos'});
-  if(ai.sr.position>0.75) factors.push({t:'接近阻力位',c:'neg'});
-  if(ai.volRatio>1.5) factors.push({t:'波动率偏高',c:'neg'});
-  if(ai.trend.consistency>0.7) factors.push({t:'趋势一致性强',c:'pos'});
-  if(ai.trend.consistency<0.3) factors.push({t:'趋势一致性强(空)',c:'neg'});
-  if(fusion.disagreement>0.2) factors.push({t:'信号分歧大',c:'neg'});
-  if(fusion.disagreement<0.08) factors.push({t:'信号高度共识',c:'pos'});
+  else if(ai.sr.position>0.75) factors.push({t:'接近阻力位',c:'neg'});
+  // 波动率
+  if(ai.volRatio>1.5) factors.push({t:'高波动',c:'neg'});
+  else if(ai.volRatio<0.6) factors.push({t:'低波动',c:'neu'});
+  // 趋势一致性
+  if(ai.trend.consistency>0.7) factors.push({t:'上涨趋势明确',c:'pos'});
+  else if(ai.trend.consistency<0.35) factors.push({t:'下跌趋势明确',c:'neg'});
+  // 信号共识
+  if(fusion.disagreement>0.15) factors.push({t:'信号分歧较大',c:'neg'});
+  else if(fusion.disagreement<0.08) factors.push({t:'信号高度共识',c:'pos'});
 
   if(factors.length>0){
     var fHtml='<div class="af-title">&#128273; 关键因子</div><div class="ai-factor-list">';
